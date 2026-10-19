@@ -21,7 +21,7 @@ def role_of(title):
     patterns=[('management',r'\b(director|head of|engineering manager|vice president|vp of|מנהל(?:ת)? פיתוח|מנהל(?:ת)? הנדסה|ראש מחלקה)\b'),
               ('support',r'\b(support|customer success|sales engineer|solutions engineer|תמיכה|הצלחת לקוח)\b'),
               ('qa',r'\b(validation|verification|quality assurance|qa|test engineer|testing engineer|בדיקות|בודק(?:ת)?|אוטומציה|אבטחת איכות)\b'),
-              ('embedded',r'\b(firmware|embedded|silicon|hardware|asic|fpga|low[ -]level|linux kernel|kernel engineer|device drivers?|bsp|board support package|משובצ(?:ת|ות)|קושחה|חומרה|ליבת לינוקס|דרייברים?|מנהלי? התקן|רמה נמוכה)\b'),
+              ('embedded',r'\b(firmware|embedded|silicon|hardware|asic|fpga|low[ -]level|linux kernel|kernel engineer|device drivers?|bsp|board support package|משובצ(?:ת|ות)|אמבדד|קושחה|חומרה|ליבת לינוקס|קרנל|דרייבר(?:ים)?|מנהלי? התקן|רמה נמוכה)\b'),
               ('security',r'\b(offensive|penetration|security engineer|cybersecurity|אבטחת מידע|סייבר)\b'),
               ('devops',r'\b(devops|site reliability|sre|platform engineer|cloud engineer|דבאופס|תשתיות ענן)\b'),
               ('data',r'\b(data engineer|data scientist|analytics engineer|דאטה|מהנדס(?:ת)? נתונים|מדען נתונים|מדענית נתונים)\b'),
@@ -36,8 +36,8 @@ def role_of(title):
 def level_of(job):
     text=(job.get('seniority') or job.get('title') or '').casefold()
     for level,pattern in [('intern',r'\b(intern|internship|student|מתמח(?:ה|ים)|סטודנט(?:ית)?)\b'),('principal',r'\b(principal|staff|distinguished|פרינסיפל)\b'),
-                          ('lead',r'\b(lead|team leader|tech lead|ראש(?:ת)? צוות|מוביל(?:ת)? צוות)\b'),('senior',r'\b(senior|sr\.?|experienced|בכיר(?:ה)?|מנוס(?:ה|ים))\b'),
-                          ('junior',r'\b(junior|jr\.?|entry[- ]level|graduate|associate|זוטר(?:ה)?|ג[׳\x27]?וניור)\b'),('mid',r'\b(mid[- ]level|intermediate|ביניים)\b')]:
+                          ('lead',r'\b(lead|team leader|tech lead|ראש(?:ת)? צוות|מוביל(?:ת)? צוות)\b'),('senior',r'\b(senior|sr\.?|experienced|בכיר(?:ה|ים|ות)?|סניור|מנוס(?:ה|ים))\b'),
+                          ('junior',r'\b(junior|jr\.?|entry[- ]level|graduate|associate|זוטר(?:ה|ים|ות)?|ג[׳\x27]?וניור)\b'),('mid',r'\b(mid[- ]level|intermediate|ביניים)\b')]:
         if re.search(pattern,text):
             return level
     return None

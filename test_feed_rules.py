@@ -62,7 +62,8 @@ class FeedRulesTests(unittest.TestCase):
         self.assertIn('17:37',local_time('2026-10-19T14:37:26+00:00'))
 
     def test_hebrew_roles_levels_and_location(self):
-        for title in ('מהנדס קושחה בכיר','מהנדסת תוכנה משובצת','מפתח ליבת לינוקס','מהנדס דרייברים'):
+        for title in ('מהנדס קושחה בכיר','מהנדסת תוכנה משובצת','מפתח ליבת לינוקס','מהנדס דרייברים',
+                      'מהנדס דרייבר','מהנדס אמבדד','מפתח קרנל לינוקס'):
             self.assertEqual(role_of(title),'embedded',title)
             self.assertTrue(match_job(self.job(title,location='תל אביב, ישראל'),{'roles':['embedded']})[0],title)
         self.assertEqual(role_of('בודקת תוכנה'),'qa')
@@ -70,6 +71,7 @@ class FeedRulesTests(unittest.TestCase):
         self.assertEqual(level_of(self.job('מהנדסת תוכנה בכירה')),'senior')
         self.assertEqual(level_of(self.job('ראש צוות תוכנה')),'lead')
         self.assertEqual(level_of(self.job('מפתח תוכנה זוטר')),'junior')
+        self.assertEqual(level_of(self.job('מהנדסי תוכנה בכירים')),'senior')
 
     def test_hebrew_posting_age_and_repost_information(self):
         now=datetime.now(timezone.utc)
