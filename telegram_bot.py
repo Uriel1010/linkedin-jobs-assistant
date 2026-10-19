@@ -210,7 +210,7 @@ HELP = '''Your private jobs database bot.
 
 /jobs [words] — browse stored jobs
 /new — reopen the latest job update
-/preferences — role, seniority, region and freshness filters
+/preferences — filters; combine settings with semicolons or newlines
 /quiet — choose quiet hours, custom times or turn them off
 /job JOB_ID — details and description preview
 /description JOB_ID — full stored description
@@ -530,24 +530,37 @@ class Bot:
     def configure_preferences(self,args=''):
         prefs=self.state.preferences()
         if args:
-            key,_,value=args.partition(' ')
-            value=value.strip().casefold()
-            if key in ('roles','levels'):
-                choices=[part.strip() for part in value.split(',') if part.strip()]
-                allowed=ROLES if key=='roles' else LEVELS
-                if not choices or any(part not in allowed for part in choices):
-                    raise ValueError('Choose '+key+': '+', '.join(sorted(allowed)))
-                prefs[key]=list(dict.fromkeys(choices))
-            elif key=='region' and value in ('israel','broad'):
-                prefs[key]=value
-            elif key in ('include','exclude'):
-                prefs[key]=[part.strip() for part in value.split(',') if part.strip()][:20] if value!='clear' else []
-            elif key=='age' and value.isdigit() and 1<=int(value)<=168:
-                prefs['max_age_hours']=int(value)
-            elif key=='unknown' and value in ('keep','hide'):
-                prefs['keep_unknown_level']=value=='keep'
-            else:
-                raise ValueError('Use /preferences roles software,data · levels senior,lead · region israel/broad · include/exclude words · age 48 · unknown keep/hide.')
+            updates=[part.strip() for part in re.split(r';|\r?\n',args) if part.strip()]
+            if not updates:
+                raise ValueError('Add a setting after /preferences, for example roles software; age 72.')
+            seen=set()
+            for update in updates:
+                # Also accept several existing /preferences lines pasted together.
+                update=re.sub(r'^/preferences(?:@\w+)?\s+', '',update,flags=re.IGNORECASE)
+                parts=update.split(maxsplit=1)
+                if len(parts)!=2:
+                    raise ValueError('Use setting value, for example roles software; levels senior; age 72. Nothing changed.')
+                key,value=parts[0].casefold(),parts[1].strip().casefold()
+                if key in seen:
+                    raise ValueError('Specify '+key+' only once. Nothing changed.')
+                seen.add(key)
+                if key in ('roles','levels'):
+                    choices=[part.strip() for part in value.split(',') if part.strip()]
+                    allowed=ROLES if key=='roles' else LEVELS
+                    if not choices or any(part not in allowed for part in choices):
+                        raise ValueError('Choose '+key+': '+', '.join(sorted(allowed))+'. Nothing changed.')
+                    prefs[key]=list(dict.fromkeys(choices))
+                elif key=='region' and value in ('israel','broad'):
+                    prefs[key]=value
+                elif key in ('include','exclude'):
+                    prefs[key]=[part.strip() for part in value.split(',') if part.strip()][:20] if value!='clear' else []
+                elif key=='age' and value.isascii() and value.isdigit() and 1<=int(value)<=168:
+                    prefs['max_age_hours']=int(value)
+                elif key=='unknown' and value in ('keep','hide'):
+                    prefs['keep_unknown_level']=value=='keep'
+                else:
+                    raise ValueError('Use /preferences roles software,data; levels senior,lead; region israel; age 72; unknown keep; include clear; exclude words. Nothing changed.')
+            # Validate the whole command before saving or re-planning deliveries.
             self.state.set_preferences(prefs)
         text=('Feed preferences\n\nRoles: '+', '.join(prefs['roles'])+'\nSeniority: '+', '.join(prefs['levels'])+
               '\nLocation: '+('Israel must be explicitly listed' if prefs['region']=='israel' else 'Broader regions and remote locations allowed')+
@@ -557,7 +570,8 @@ class Bot:
               '\nExclude title words: '+(', '.join(prefs['exclude']) or 'None')+
               '\n\nSoftware includes backend, frontend and full stack. Title-based categories are rules, not a CV match score. '
               'Posting dates that LinkedIn does not provide stay unknown.\n\n'
-              'Custom: /preferences roles software,data or /preferences levels senior,lead. '
+              'Combine settings: /preferences roles software,data; levels senior,lead; age 72. '
+              'Newlines and pasted /preferences commands also work. All settings are checked before anything changes. '
               'Previously filtered discoveries are rechecked when you change preferences; sent jobs stay deduplicated.')
         self.send(text,[[{'text':'Software roles','callback_data':'pref:roles:software'},{'text':'All roles','callback_data':'pref:roles:all'}],
                         [{'text':'All seniorities','callback_data':'pref:levels:all'},{'text':'Junior','callback_data':'pref:levels:junior'}],
@@ -565,7 +579,9 @@ class Bot:
                         [{'text':'Israel only','callback_data':'pref:region:israel'},{'text':'Broader locations','callback_data':'pref:region:broad'}]])
 
     def command(self, text):
-        first, _, args = text.strip().partition(' ')
+        parts=text.strip().split(maxsplit=1)
+        first=parts[0] if parts else ''
+        args=parts[1] if len(parts)>1 else ''
         command = first.split('@')[0].lower()
         args = args.strip()
         if command=='/start':

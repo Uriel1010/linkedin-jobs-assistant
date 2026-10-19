@@ -57,6 +57,14 @@ The image is an illustration with fictional jobs, not a live screenshot.
 
 ### Personalize your feed
 
+Apply several settings in one Telegram command, separated by semicolons:
+
+```text
+/preferences roles embedded,software,qa,other; levels mid,senior; region israel; age 72; unknown keep; include clear; exclude frontend,full stack,web developer,marketing,product manager,technical support
+```
+
+You can also put each setting on a new line in the same message after `/preferences`, or paste several existing `/preferences …` lines together. The bot validates every setting before saving anything and replies with one summary. If any setting is invalid or repeated, nothing changes. Commas separate list items; spaces within phrases such as `full stack` and `technical support` are preserved.
+
 Open `/preferences` for buttons, or enter:
 
 ```text

@@ -183,6 +183,53 @@ class BotTests(unittest.TestCase):
         self.bot.handle(self.message('/preferences levels invented'))
         self.assertEqual(self.state.preferences()['levels'],['senior'])
 
+    def test_combined_preferences_match_requested_profile_and_save_once(self):
+        command=('/preferences roles embedded,software,qa,other; levels mid,senior; region israel; '
+            'age 72; unknown keep; include clear; '
+            'exclude frontend,full stack,web developer,marketing,product manager,technical support')
+        with patch.object(self.state,'set_preferences',wraps=self.state.set_preferences) as save:
+            self.bot.handle(self.message(command))
+        save.assert_called_once()
+        prefs=self.state.preferences()
+        self.assertEqual(prefs['roles'],['embedded','software','qa','other'])
+        self.assertEqual(prefs['levels'],['mid','senior'])
+        self.assertEqual(prefs['region'],'israel')
+        self.assertEqual(prefs['max_age_hours'],72)
+        self.assertTrue(prefs['keep_unknown_level'])
+        self.assertEqual(prefs['include'],[])
+        self.assertEqual(prefs['exclude'],['frontend','full stack','web developer','marketing','product manager','technical support'])
+        self.bot.send.assert_called_once()
+
+    def test_pasted_preference_commands_form_one_atomic_update(self):
+        command='/preferences roles embedded,software\n/preferences levels mid,senior\n/preferences@my_jobs_bot age 72\n/preferences exclude full stack,technical support'
+        self.bot.handle(self.message(command))
+        prefs=self.state.preferences()
+        self.assertEqual(prefs['roles'],['embedded','software'])
+        self.assertEqual(prefs['levels'],['mid','senior'])
+        self.assertEqual(prefs['max_age_hours'],72)
+        self.assertEqual(prefs['exclude'],['full stack','technical support'])
+        self.bot.send.assert_called_once()
+
+    def test_preferences_support_one_command_followed_by_newline_settings(self):
+        self.bot.handle(self.message('/preferences\nroles qa\nlevels mid\nage 72\nexclude full stack,web developer'))
+        self.assertEqual(self.state.preferences()['roles'],['qa'])
+        self.assertEqual(self.state.preferences()['levels'],['mid'])
+        self.assertEqual(self.state.preferences()['max_age_hours'],72)
+        self.assertEqual(self.state.preferences()['exclude'],['full stack','web developer'])
+
+    def test_invalid_combined_preferences_preserve_settings_and_delivery_plan(self):
+        self.state.enqueue([JOB],1)
+        self.state.prepare_batch()
+        before=self.state.preferences()
+        plan=[tuple(row) for row in self.state.con.execute('SELECT * FROM delivery_parts')]
+        for args in ('roles qa; age 999','roles qa; levels invented','roles qa; age',
+                     'roles qa; region moon','roles qa; unknown maybe','roles qa; roles software','; ;'):
+            with patch.object(self.state,'set_preferences',wraps=self.state.set_preferences) as save:
+                self.bot.handle(self.message('/preferences '+args))
+            save.assert_not_called()
+            self.assertEqual(self.state.preferences(),before)
+            self.assertEqual([tuple(row) for row in self.state.con.execute('SELECT * FROM delivery_parts')],plan)
+
     def test_unsent_numbered_batch_survives_restart(self):
         self.state.enqueue([{**JOB,'id':str(i)} for i in range(7)],7)
         self.state.prepare_batch()
