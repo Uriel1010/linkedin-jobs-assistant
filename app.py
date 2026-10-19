@@ -248,6 +248,10 @@ class SearchUpdate(BaseModel):
     lookback_hours: int | None = Field(default=None, ge=24, le=168)
 
 
+class SearchBatch(BaseModel):
+    searches: list[Search] = Field(min_length=1, max_length=20)
+
+
 @app.get('/health')
 def health():
     task = getattr(app.state,'worker',None)
@@ -277,12 +281,42 @@ def status():
 @app.post('/searches', dependencies=protected, status_code=201)
 def create_search(search: Search):
     with storage.db() as con:
+        con.execute('BEGIN IMMEDIATE')
         if con.execute('SELECT count(*) FROM searches').fetchone()[0] >= 20:
             raise HTTPException(409, 'Maximum 20 searches; update or remove an existing search')
         cur = con.execute('INSERT INTO searches(keywords,location,remote,interval_minutes,max_pages,lookback_hours) VALUES (?,?,?,?,?,?)',
                           (search.keywords.strip(), search.location.strip(), search.remote, search.interval_minutes,search.max_pages,search.lookback_hours))
         search_id = cur.lastrowid
     return get_search(search_id)
+
+
+@app.post('/searches/bulk', dependencies=protected)
+def create_search_batch(batch: SearchBatch):
+    def identity(keywords,location,remote):
+        return (' '.join(keywords.split()).casefold(),' '.join(location.split()).casefold(),bool(remote))
+    with storage.db() as con:
+        # Serialize creation and preflight the full batch before any INSERT.
+        con.execute('BEGIN IMMEDIATE')
+        existing={}
+        for row in con.execute('SELECT * FROM searches ORDER BY enabled DESC,id'):
+            existing.setdefault(identity(row['keywords'],row['location'],row['remote']),dict(row))
+        requested={}
+        for search in batch.searches:
+            requested.setdefault(identity(search.keywords,search.location,search.remote),search)
+        new_count=sum(key not in existing for key in requested)
+        if con.execute('SELECT count(*) FROM searches').fetchone()[0]+new_count>20:
+            raise HTTPException(409,'Maximum 20 searches; nothing added. Update or remove an existing search first.')
+        items=[]
+        for key,search in requested.items():
+            created=key not in existing
+            if created:
+                cur=con.execute('INSERT INTO searches(keywords,location,remote,interval_minutes,max_pages,lookback_hours) VALUES (?,?,?,?,?,?)',
+                    (search.keywords.strip(),search.location.strip(),search.remote,search.interval_minutes,search.max_pages,search.lookback_hours))
+                row=dict(con.execute('SELECT * FROM searches WHERE id=?',(cur.lastrowid,)).fetchone())
+            else:
+                row=existing[key]
+            items.append({**row,'created':created})
+    return {'items':items,'created':new_count,'existing':len(items)-new_count}
 
 
 @app.get('/searches', dependencies=protected)

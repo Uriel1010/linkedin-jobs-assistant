@@ -216,7 +216,7 @@ HELP = '''Your private jobs database bot.
 /description JOB_ID — full stored description
 /refresh JOB_ID — fetch a description from LinkedIn
 /status — database and collector health
-/track job title | location — start an hourly collection search
+/track job title | location — hourly searches; paste multiple lines to add a batch
 /searches — list collection searches
 /setsearch ID job title | location — edit a search
 /collect SEARCH_ID — collect now (cooldown applies)
@@ -578,6 +578,27 @@ class Bot:
                         [{'text':'Senior','callback_data':'pref:levels:senior'},{'text':'Lead / Principal','callback_data':'pref:levels:lead,principal'}],
                         [{'text':'Israel only','callback_data':'pref:region:israel'},{'text':'Broader locations','callback_data':'pref:region:broad'}]])
 
+    def track_searches(self,args):
+        lines=[line.strip() for line in re.split(r';|\r?\n',args) if line.strip()]
+        if not lines or len(lines)>20:
+            raise ValueError('Use /track job title | location. Paste up to 20 lines in one message.')
+        searches=[]
+        for line in lines:
+            line=re.sub(r'^/track(?:@\w+)?\s+','',line,flags=re.IGNORECASE)
+            if line.count('|')!=1:
+                raise ValueError('Each line must be /track job title | location. Nothing added.')
+            keywords,location=[part.strip() for part in line.split('|',1)]
+            if not keywords or keywords.startswith('/') or len(keywords)>200 or len(location)>200:
+                raise ValueError('Use a non-empty title and at most 200 characters per title/location. Nothing added.')
+            searches.append({'keywords':keywords,'location':location})
+        result=self.api('POST','/searches/bulk',{'searches':searches})
+        text=[f"Searches updated · {result['created']} added · {result['existing']} already tracked"]
+        for row in result['items']:
+            state='Hourly collection enabled' if row['created'] else ('Already tracked' if row['enabled'] else 'Already tracked · paused')
+            text.append(f"\n#{row['id']} · {row['keywords']} | {row['location'] or 'Any location'}\n{state}")
+        text.append('\nNew searches start in the background. Existing schedules and pause settings are preserved. Use /searches to manage them.')
+        self.send('\n'.join(text))
+
     def command(self, text):
         parts=text.strip().split(maxsplit=1)
         first=parts[0] if parts else ''
@@ -626,11 +647,7 @@ class Bot:
         elif command=='/status':
             self.show_status()
         elif command=='/track':
-            keywords, sep, location = args.partition('|')
-            if not sep or not keywords.strip():
-                raise ValueError('Use /track Software Engineer | Israel. A blank location after | means any location.')
-            data = self.api('POST','/searches',{'keywords':keywords.strip(),'location':location.strip()})
-            self.send(f"Hourly collection enabled. Search ID: {data['id']}\n{data['keywords']} · {data['location'] or 'Any location'}\nThe background collector will start when due. Use /searches to manage it.")
+            self.track_searches(args)
         elif command=='/searches':
             rows = self.api('GET','/searches')
             self.send('Searches · Israel time\n\n'+'\n\n'.join(f"#{r['id']} · {'Active' if r['enabled'] else 'Paused'} · {r['keywords']} · {r['location']}\nEvery {r['interval_minutes']} minutes\nLast successful search: {local_time(r.get('last_success'),True)}\nNext search: {local_time(r.get('next_due'),True)}\nCoverage: {'Limited' if r['status']=='partial' else r['status'].replace('_',' ')}" for r in rows) if rows else 'No collection searches yet. Use /track job title | location.')

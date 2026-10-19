@@ -92,6 +92,43 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(service.retry_delay({'interval_minutes':10080,'failures':5}),10080)
         self.assertEqual(service.retry_delay({'interval_minutes':30,'failures':4}),360)
 
+    def test_bulk_searches_create_once_and_preserve_existing_settings(self):
+        endpoint='/searches/bulk'
+        searches=[{'keywords':'Firmware Engineer','location':'Israel'},
+                  {'keywords':'Linux Kernel Engineer','location':'Israel'}]
+        self.assertEqual(self.client.post(endpoint,json={'searches':searches}).status_code,401)
+        first=self.client.post(endpoint,headers=self.auth,json={'searches':searches}).json()
+        self.assertEqual(first['created'],2)
+        saved=first['items'][0]
+        self.client.patch('/searches/'+str(saved['id']),headers=self.auth,
+            json={'enabled':False,'interval_minutes':120})
+        second=self.client.post(endpoint,headers=self.auth,json={'searches':[
+            {'keywords':'  firmware   engineer ','location':' israel '},searches[1],searches[1]]}).json()
+        self.assertEqual(second['created'],0)
+        self.assertEqual(second['existing'],2)
+        self.assertEqual(second['items'][0]['id'],saved['id'])
+        self.assertFalse(second['items'][0]['enabled'])
+        self.assertEqual(second['items'][0]['interval_minutes'],120)
+        self.assertEqual(len(self.client.get('/searches',headers=self.auth).json()),2)
+
+    def test_bulk_search_validation_and_capacity_are_all_or_nothing(self):
+        invalid={'searches':[{'keywords':'Firmware Engineer'},{'keywords':'   '}]}
+        self.assertEqual(self.client.post('/searches/bulk',headers=self.auth,json=invalid).status_code,422)
+        self.assertEqual(self.client.get('/searches',headers=self.auth).json(),[])
+        payload={'searches':[{'keywords':'Title '+str(i)} for i in range(19)]}
+        self.assertEqual(self.client.post('/searches/bulk',headers=self.auth,json=payload).status_code,200)
+        full={'searches':[{'keywords':'Extra one'},{'keywords':'Extra two'}]}
+        self.assertEqual(self.client.post('/searches/bulk',headers=self.auth,json=full).status_code,409)
+        self.assertEqual(len(self.client.get('/searches',headers=self.auth).json()),19)
+
+    def test_bulk_remote_and_location_are_part_of_search_identity(self):
+        payload={'searches':[{'keywords':'Firmware','location':'Israel'},
+            {'keywords':'Firmware','location':'Israel','remote':True},
+            {'keywords':'Firmware','location':'France'}]}
+        response=self.client.post('/searches/bulk',headers=self.auth,json=payload)
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.json()['created'],3)
+
     def test_application_workflow_and_followups(self):
         search_id = self.search()
         storage.save_jobs(search_id, [{'id':'123','title':'Engineer','url':'https://www.linkedin.com/jobs/view/123/'}])

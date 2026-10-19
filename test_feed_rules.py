@@ -16,6 +16,14 @@ class FeedRulesTests(unittest.TestCase):
         for title in ['Senior Frontend Engineer','Backend Engineer - Extensions','Fullstack Engineer','Principal C++ Software Engineer']:
             self.assertTrue(match_job(self.job(title),{})[0],title)
 
+    def test_embedded_search_titles_are_classified_and_match_selected_roles(self):
+        titles=['Embedded Software Engineer','Firmware Engineer','Embedded Linux Engineer',
+                'Low Level Software Engineer','Linux Kernel Engineer','Device Driver Engineer','BSP Engineer']
+        for title in titles:
+            self.assertEqual(role_of(title),'embedded',title)
+            self.assertTrue(match_job(self.job(title),{'roles':['embedded','software','qa','other']})[0],title)
+        self.assertEqual(role_of('System Software Engineer'),'software')
+
     def test_remote_eligibility_is_not_invented(self):
         self.assertFalse(match_job(self.job(location='EMEA (Remote)'),{})[0])
         self.assertTrue(match_job(self.job(location='Israel (Remote)'),{})[0])

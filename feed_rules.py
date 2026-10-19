@@ -14,7 +14,7 @@ def role_of(title):
     patterns=[('management',r'\b(director|head of|engineering manager|vice president|vp of)\b'),
               ('support',r'\b(support|customer success|sales engineer|solutions engineer)\b'),
               ('qa',r'\b(validation|verification|quality assurance|qa|test engineer|testing engineer)\b'),
-              ('embedded',r'\b(firmware|embedded|silicon|hardware|asic|fpga)\b'),
+              ('embedded',r'\b(firmware|embedded|silicon|hardware|asic|fpga|low[ -]level|linux kernel|kernel engineer|device drivers?|bsp|board support package)\b'),
               ('security',r'\b(offensive|penetration|security engineer|cybersecurity)\b'),
               ('devops',r'\b(devops|site reliability|sre|platform engineer|cloud engineer)\b'),
               ('data',r'\b(data engineer|data scientist|analytics engineer)\b'),

@@ -104,6 +104,23 @@ These are title/location rules, not a CV-based suitability score. Preferences fi
 
 Use the actual search IDs from `/searches`; `2` is an example. `/track` adds an hourly search. A blank location after `|` means any location. `/setsearch` changes criteria and retains the hourly interval.
 
+You can paste multiple `/track` lines as **one Telegram message**:
+
+```text
+/track Embedded Software Engineer | Israel
+/track Firmware Engineer | Israel
+/track Embedded Linux Engineer | Israel
+/track Low Level Software Engineer | Israel
+/track Linux Kernel Engineer | Israel
+/track Device Driver Engineer | Israel
+/track System Software Engineer | Israel
+/track BSP Engineer | Israel
+```
+
+The bot sends one confirmation. Semicolons or one `/track` followed by newline-separated `title | location` entries also work. Up to 20 entries are accepted, with a maximum of 20 stored searches. All entries are validated before any are created. Repeating a title/location/work-arrangement combination reuses the existing search, ignoring case and extra whitespace; existing schedules and paused states are preserved. A batch that exceeds capacity creates nothing. Jobs matching several searches are still notified once per job ID.
+
+Firmware, embedded, low-level, Linux kernel, device-driver and BSP titles are classified as embedded roles. Include `embedded` in `/preferences roles` to receive those alerts. System software titles remain in the software category.
+
 `/setsearch`, `/collect`, `/pause` and `/resume` can omit the ID when a primary search is configured or only one search exists. Manual collection respects the server's cooldown and login checks.
 
 ### Quiet hours and catch-up
@@ -293,6 +310,7 @@ Persist the response's `next_after_id` and send it as `after_id` next time. Even
 | `POST /jobs/{id}/refresh` | Fetch source details |
 | `GET /searches` | Searches and last/next runs |
 | `POST /searches` | Create a search |
+| `POST /searches/bulk` | Atomically create/reuse a batch of searches; body `{"searches": [{"keywords": "Firmware Engineer", "location": "Israel"}]}` |
 | `PATCH /searches/{id}` | Edit criteria, limits, interval or enabled state |
 | `POST /searches/{id}/poll` | Request collection now |
 | `DELETE /searches/{id}` | Remove a search and its match history |

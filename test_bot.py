@@ -57,9 +57,35 @@ class BotTests(unittest.TestCase):
     def test_track_criteria_are_explicit(self):
         self.bot.handle(self.message('/track'))
         self.bot.api.assert_not_called()
-        self.bot.api.return_value = {'id':1,'keywords':'Python','location':'Israel'}
+        self.bot.api.return_value = {'created':1,'existing':0,'items':[{'id':1,'keywords':'Python','location':'Israel','created':True,'enabled':True}]}
         self.bot.handle(self.message('/track Python | Israel'))
-        self.bot.api.assert_called_once_with('POST','/searches',{'keywords':'Python','location':'Israel'})
+        self.bot.api.assert_called_once_with('POST','/searches/bulk',{'searches':[{'keywords':'Python','location':'Israel'}]})
+
+    def test_track_pasted_commands_use_one_bulk_request_and_one_reply(self):
+        titles=['Embedded Software Engineer','Firmware Engineer','Embedded Linux Engineer','Low Level Software Engineer',
+                'Linux Kernel Engineer','Device Driver Engineer','System Software Engineer','BSP Engineer']
+        self.bot.api.return_value={'created':8,'existing':0,'items':[
+            {'id':index,'keywords':title,'location':'Israel','created':True,'enabled':True}
+            for index,title in enumerate(titles,1)]}
+        self.bot.handle(self.message('\n'.join('/track '+title+' | Israel' for title in titles)))
+        self.bot.api.assert_called_once_with('POST','/searches/bulk',{'searches':[
+            {'keywords':title,'location':'Israel'} for title in titles]})
+        self.bot.send.assert_called_once()
+        self.assertIn('8 added',self.bot.send.call_args.args[0])
+
+    def test_track_invalid_later_line_creates_nothing(self):
+        for command in ('/track Firmware Engineer | Israel\n/track missing separator',
+                        '/track Firmware Engineer | Israel; | Israel',
+                        '/track Firmware Engineer | Israel; /pause 1 | Israel'):
+            self.bot.handle(self.message(command))
+        self.bot.api.assert_not_called()
+
+    def test_track_newline_settings_and_existing_paused_search(self):
+        self.bot.api.return_value={'created':0,'existing':1,'items':[
+            {'id':3,'keywords':'Firmware Engineer','location':'','created':False,'enabled':False}]}
+        self.bot.handle(self.message('/track\nFirmware Engineer |'))
+        self.bot.api.assert_called_once_with('POST','/searches/bulk',{'searches':[{'keywords':'Firmware Engineer','location':''}]})
+        self.assertIn('Already tracked · paused',self.bot.send.call_args.args[0])
 
     def test_notifications_off_by_default(self):
         self.bot.notifications()
