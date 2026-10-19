@@ -224,7 +224,7 @@ async def authorize(key: Annotated[str | None, Depends(APIKeyHeader(name='X-API-
         raise HTTPException(401, 'Invalid API key')
 
 
-app = FastAPI(title='LinkedIn Jobs API', version='2.0.0', lifespan=lifespan,
+app = FastAPI(title='LinkedIn Jobs API', version='2.1.0', lifespan=lifespan,
               description='Personal LinkedIn session collector. Configure searches after connecting. Browser collection is experimental; live login is required.')
 protected = [Depends(authorize)]
 

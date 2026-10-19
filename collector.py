@@ -25,11 +25,12 @@ EXTRACT = r'''() => {
     const title = pick('.job-card-list__title--link strong, .job-card-list__title strong, .base-search-card__title') || a?.innerText?.trim();
     if (!title) return null;
     const posted = pick('time') || [...card.querySelectorAll('.job-card-container__footer-item')]
-      .map(el => el.innerText.trim()).find(text => /\b(?:seconds?|minutes?|hours?|days?|weeks?|months?|years?)\s+ago\b|\b(?:just now|today|yesterday)\b/i.test(text)) || null;
+      .map(el => el.innerText.trim()).find(text => /\b(?:seconds?|minutes?|hours?|days?|weeks?|months?|years?)\s+ago\b|\b(?:just now|today|yesterday)\b|לפני|פורסם מחדש|היום|אתמול|זה עתה/i.test(text)) || null;
     return {id:raw, title, company:pick('.artdeco-entity-lockup__subtitle, .job-card-container__primary-description, .base-search-card__subtitle'),
       location:pick('.job-card-container__metadata-item, .artdeco-entity-lockup__caption, .job-search-card__location'),
       url:'https://www.linkedin.com/jobs/view/'+raw+'/',
-      posted_text:posted && /\breposted\b/i.test(card.innerText) && !/\breposted\b/i.test(posted) ? 'Reposted '+posted : posted,
+      posted_text:posted && /\breposted\b|פורסם מחדש/i.test(card.innerText) && !/\breposted\b|פורסם מחדש/i.test(posted)
+        ? (/פורסם מחדש/.test(card.innerText) ? 'פורסם מחדש ' : 'Reposted ')+posted : posted,
       posting_observed_at:new Date().toISOString(),
       posted_at:card.querySelector('time[datetime]')?.getAttribute('datetime') || null};
   }).filter(Boolean);

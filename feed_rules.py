@@ -2,35 +2,42 @@
 import re
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
+from i18n import tr, source
 
 ROLES = {'software','backend','frontend','fullstack','data','devops','ml','security','embedded','qa','support','research','management','other','all'}
 LEVELS = {'intern','junior','mid','senior','lead','principal','all'}
 DEFAULT_PREFERENCES = {'roles':['software'],'levels':['all'],'region':'israel',
                        'include':[],'exclude':[],'max_age_hours':48,'keep_unknown_level':True}
+KEYWORD_EQUIVALENTS=[('frontend','front end','front-end','פרונטאנד','פרונט','צד לקוח'),
+    ('full stack','fullstack','full-stack','פול סטאק','פולסטאק','פול-סטאק'),
+    ('web developer','web development','מפתח ווב','מפתחת ווב','מפתח אתרים','מפתחת אתרים','פיתוח אתרים'),
+    ('marketing','שיווק'),('product manager','מנהל מוצר','מנהלת מוצר'),
+    ('technical support','תמיכה טכנית'),('python','פייתון'),
+    ('backend','back end','back-end','בקאנד','בק אנד','צד שרת')]
 
 
 def role_of(title):
     title=title.casefold()
-    patterns=[('management',r'\b(director|head of|engineering manager|vice president|vp of)\b'),
-              ('support',r'\b(support|customer success|sales engineer|solutions engineer)\b'),
-              ('qa',r'\b(validation|verification|quality assurance|qa|test engineer|testing engineer)\b'),
-              ('embedded',r'\b(firmware|embedded|silicon|hardware|asic|fpga|low[ -]level|linux kernel|kernel engineer|device drivers?|bsp|board support package)\b'),
-              ('security',r'\b(offensive|penetration|security engineer|cybersecurity)\b'),
-              ('devops',r'\b(devops|site reliability|sre|platform engineer|cloud engineer)\b'),
-              ('data',r'\b(data engineer|data scientist|analytics engineer)\b'),
-              ('research',r'\b(researcher|research scientist|algorithms? engineer|control algorithms)\b'),
-              ('ml',r'\b(ai engineer|ai researcher|machine learning|ml engineer|agentic ai)\b'),
-              ('fullstack',r'\bfull[ -]?stack\b'),('backend',r'\bback[ -]?end\b'),
-              ('frontend',r'\bfront[ -]?end\b'),
-              ('software',r'\b(software|developer|programmer|development engineer)\b')]
+    patterns=[('management',r'\b(director|head of|engineering manager|vice president|vp of|מנהל(?:ת)? פיתוח|מנהל(?:ת)? הנדסה|ראש מחלקה)\b'),
+              ('support',r'\b(support|customer success|sales engineer|solutions engineer|תמיכה|הצלחת לקוח)\b'),
+              ('qa',r'\b(validation|verification|quality assurance|qa|test engineer|testing engineer|בדיקות|בודק(?:ת)?|אוטומציה|אבטחת איכות)\b'),
+              ('embedded',r'\b(firmware|embedded|silicon|hardware|asic|fpga|low[ -]level|linux kernel|kernel engineer|device drivers?|bsp|board support package|משובצ(?:ת|ות)|קושחה|חומרה|ליבת לינוקס|דרייברים?|מנהלי? התקן|רמה נמוכה)\b'),
+              ('security',r'\b(offensive|penetration|security engineer|cybersecurity|אבטחת מידע|סייבר)\b'),
+              ('devops',r'\b(devops|site reliability|sre|platform engineer|cloud engineer|דבאופס|תשתיות ענן)\b'),
+              ('data',r'\b(data engineer|data scientist|analytics engineer|דאטה|מהנדס(?:ת)? נתונים|מדען נתונים|מדענית נתונים)\b'),
+              ('research',r'\b(researcher|research scientist|algorithms? engineer|control algorithms|חוקר(?:ת)?|אלגוריתמים)\b'),
+              ('ml',r'\b(ai engineer|ai researcher|machine learning|ml engineer|agentic ai|למידת מכונה|בינה מלאכותית)\b'),
+              ('fullstack',r'\b(full[ -]?stack|פול[ -]?סטאק)\b'),('backend',r'\b(back[ -]?end|בק[ -]?אנד|צד שרת)\b'),
+              ('frontend',r'\b(front[ -]?end|פרונט(?:אנד)?|צד לקוח)\b'),
+              ('software',r'\b(software|developer|programmer|development engineer|תוכנה|תכנות|מתכנת(?:ת)?|מפתח(?:ת)?)\b')]
     return next((role for role,pattern in patterns if re.search(pattern,title)),'other')
 
 
 def level_of(job):
     text=(job.get('seniority') or job.get('title') or '').casefold()
-    for level,pattern in [('intern',r'\b(intern|internship|student)\b'),('principal',r'\b(principal|staff|distinguished)\b'),
-                          ('lead',r'\b(lead|team leader|tech lead)\b'),('senior',r'\b(senior|sr\.?|experienced)\b'),
-                          ('junior',r'\b(junior|jr\.?|entry[- ]level|graduate|associate)\b'),('mid',r'\b(mid[- ]level|intermediate)\b')]:
+    for level,pattern in [('intern',r'\b(intern|internship|student|מתמח(?:ה|ים)|סטודנט(?:ית)?)\b'),('principal',r'\b(principal|staff|distinguished|פרינסיפל)\b'),
+                          ('lead',r'\b(lead|team leader|tech lead|ראש(?:ת)? צוות|מוביל(?:ת)? צוות)\b'),('senior',r'\b(senior|sr\.?|experienced|בכיר(?:ה)?|מנוס(?:ה|ים))\b'),
+                          ('junior',r'\b(junior|jr\.?|entry[- ]level|graduate|associate|זוטר(?:ה)?|ג[׳\x27]?וניור)\b'),('mid',r'\b(mid[- ]level|intermediate|ביניים)\b')]:
         if re.search(pattern,text):
             return level
     return None
@@ -46,15 +53,15 @@ def parse_time(value):
         return None
 
 
-def local_time(value, clock_only=False):
+def local_time(value, clock_only=False, language='en'):
     if isinstance(value,str) and value.endswith(' UTC'):
         value=value[:-4]+'+00:00'
     dt=parse_time(value)
     if dt is None:
-        return 'Not yet' if not value else str(value)
+        return tr('Not yet',language) if not value else str(value)
     local=dt.astimezone(ZoneInfo('Asia/Jerusalem'))
     today=datetime.now(ZoneInfo('Asia/Jerusalem')).date()
-    return local.strftime('%H:%M') if clock_only and local.date()==today else local.strftime('%d %b %H:%M')
+    return local.strftime('%H:%M') if clock_only and local.date()==today else local.strftime('%d/%m %H:%M' if language=='he' else '%d %b %H:%M')
 
 
 def age_hours(job, now=None):
@@ -70,17 +77,24 @@ def age_hours(job, now=None):
         except ValueError:
             pass
     text=(job.get('posted_text') or '').casefold()
-    if 'reposted' in text:
+    if 'reposted' in text or 'פורסם מחדש' in text:
         return None  # A repost label does not establish the original posting date.
     match=re.search(r'(\d+)\s*(second|minute|hour|day|week|month|year)s?\s+ago',text)
-    if not match:
-        return None
-    multiplier={'second':1/3600,'minute':1/60,'hour':1,'day':24,'week':168,'month':720,'year':8760}[match[2]]
+    if match:
+        hours=int(match[1])*{'second':1/3600,'minute':1/60,'hour':1,'day':24,'week':168,'month':720,'year':8760}[match[2]]
+    else:
+        hebrew=re.search(r'לפני\s+(?:(\d+)\s+)?(שניות|שנייה|שניה|דקות|דקה|שעות|שעה|יומיים|ימים|יום|שבועיים|שבועות|שבוע|חודשיים|חודשים|חודש|שנים|שנה)\b',text)
+        if not hebrew:
+            return None
+        units={'שניות':1/3600,'שנייה':1/3600,'שניה':1/3600,'דקות':1/60,'דקה':1/60,'שעות':1,'שעה':1,
+            'ימים':24,'יום':24,'יומיים':48,'שבועות':168,'שבוע':168,'שבועיים':336,
+            'חודשים':720,'חודש':720,'חודשיים':1440,'שנים':8760,'שנה':8760}
+        hours=int(hebrew[1] or 1)*units[hebrew[2]]
     observed=parse_time(job.get('posting_observed_at'))
     if observed is None:
         return None
     elapsed=max(0,(now-observed).total_seconds()/3600) if observed else 0
-    return int(match[1])*multiplier+elapsed
+    return hours+elapsed
 
 
 def match_job(job, preferences, now=None):
@@ -102,7 +116,9 @@ def match_job(job, preferences, now=None):
     if prefs['region']=='israel' and not re.search(r'\bisrael\b|ישראל',(job.get('location') or '').casefold()):
         return False,'Israel eligibility not stated'
     def has(phrase):
-        return bool(re.search(r'(?<!\w)'+re.escape(phrase.casefold())+r'(?!\w)',title.casefold()))
+        value=phrase.casefold()
+        variants=next((group for group in KEYWORD_EQUIVALENTS if value in group),(value,))
+        return any(re.search(r'(?<!\w)'+re.escape(variant)+r'(?!\w)',title.casefold()) for variant in variants)
     if prefs['include'] and not any(has(phrase) for phrase in prefs['include']):
         return False,'Required title keywords not found'
     if any(has(phrase) for phrase in prefs['exclude']):
@@ -113,26 +129,27 @@ def match_job(job, preferences, now=None):
     return True,'Matches configured role and location'
 
 
-def freshness_label(job):
+def freshness_label(job,language='en'):
     posted=job.get('posted_at')
     raw=' '.join((job.get('posted_text') or '').split())
-    if raw and 'reposted' in raw.casefold():
-        return 'LinkedIn: '+raw[:90]+' · original posting date unknown'
+    if raw and ('reposted' in raw.casefold() or 'פורסם מחדש' in raw):
+        return tr('LinkedIn: {label} · original posting date unknown',language,label=source(raw[:90],language))
     if posted:
-        return 'Posted on LinkedIn: '+local_time(posted)
+        return tr('Posted on LinkedIn: {date}',language,date=local_time(posted,language=language))
     if raw:
         observed=job.get('posting_observed_at')
-        return 'LinkedIn label: '+raw[:90]+(' · observed '+local_time(observed,True) if observed else ' · observation time unknown')
-    return 'Posting date not provided by LinkedIn'
+        return tr('LinkedIn label: {label}',language,label=source(raw[:90],language))+(tr(' · observed {time}',language,time=local_time(observed,True,language)) if observed else tr(' · observation time unknown',language))
+    return tr('Posting date not provided by LinkedIn',language)
 
 
-def job_card(job):
+def job_card(job,language='en'):
     level=level_of(job)
-    tags=role_of(job.get('title') or '').replace('fullstack','full stack').title()
+    role=role_of(job.get('title') or '')
+    tags=tr(role,language) if language=='he' else role.replace('fullstack','full stack').title()
     if level:
-        tags+=' · '+level.title()+' (title/metadata)'
-    return (f"{(job.get('title') or 'Job')[:150]} · {(job.get('company') or 'Company unknown')[:90]}\n"
-            f"{(job.get('location') or 'Location not specified')[:140]}\n{tags}\n{freshness_label(job)}\n{job['url']}")
+        tags+=' · '+(tr(level,language) if language=='he' else level.title())+tr(' (title/metadata)',language)
+    return (f"{source((job.get('title') or tr('Job',language))[:150],language)} · {source((job.get('company') or tr('Company unknown',language))[:90],language)}\n"
+            f"{source((job.get('location') or tr('Location not specified',language))[:140],language)}\n{tags}\n{freshness_label(job,language)}\n{source(job['url'],language)}")
 
 
 def friendly_alert(alert):

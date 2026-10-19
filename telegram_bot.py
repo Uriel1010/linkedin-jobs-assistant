@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from maintenance import backup_database
 from feed_rules import DEFAULT_PREFERENCES, ROLES, LEVELS, match_job, job_card, local_time, friendly_alert
+from i18n import tr, source, HELP_HE, KEY_ALIASES, preference_value, command_alias, is_hebrew_command
 
 
 class ServiceError(Exception):
@@ -212,6 +213,7 @@ HELP = '''Your private jobs database bot.
 /new — reopen the latest job update
 /preferences — filters; combine settings with semicolons or newlines
 /quiet — choose quiet hours, custom times or turn them off
+/language he|en|auto — Hebrew, English or Telegram language detection
 /job JOB_ID — details and description preview
 /description JOB_ID — full stored description
 /refresh JOB_ID — fetch a description from LinkedIn
@@ -241,6 +243,57 @@ class Bot:
         self.api_base = api_base.rstrip('/')
         self.last_send = 0.0
 
+    @property
+    def language(self):
+        selected=self.state.get('language','auto')
+        return selected if selected in ('en','he') else self.state.get('detected_language','en')
+
+    def t(self,text,**fields):
+        return tr(text,self.language,**fields)
+
+    def time_label(self,value,clock_only=False):
+        return local_time(value,clock_only,self.language)
+
+    def labels(self,values):
+        return ', '.join(self.t(value) for value in values)
+
+    def local_buttons(self,buttons):
+        return [[{**button,'text':self.t(button['text'])} for button in row] for row in (buttons or [])]
+
+    def configure_language(self,args=''):
+        aliases={'עברית':'he','אנגלית':'en','אוטומטי':'auto','iw':'he'}
+        selected=aliases.get(args.strip().casefold(),args.strip().casefold())
+        if selected:
+            if selected not in ('he','en','auto'):
+                raise ValueError('Use /language he, /language en or /language auto.')
+            self.state.set('language',selected)
+            self.configure_owner_commands()
+        current=self.state.get('language','auto')
+        self.send(self.t('language_prompt',selected=self.t('language_name_'+current)),
+            [[{'text':'עברית','callback_data':'language:he'},{'text':'English','callback_data':'language:en'},
+              {'text':'אוטומטי · Auto','callback_data':'language:auto'}]])
+
+    def command_definitions(self):
+        return [('start','Open your private job feed'),('new','Latest update with page navigation'),
+            ('jobs','Browse all stored jobs'),('preferences','Choose roles, levels and location'),
+            ('quiet','Choose quiet hours and timezone'),('language','Choose English, Hebrew or automatic'),
+            ('status','Feed and search health'),('searches','Your collection searches'),
+            ('track','Add search: title | location'),('setsearch','Edit search: ID title | location'),
+            ('collect','Run a search now'),('pause','Pause collection for a search'),
+            ('resume','Resume collection for a search'),('notify','Turn notifications on or off'),
+            ('job','Job details: JOB_ID'),('description','Stored description: JOB_ID'),
+            ('refresh','Fetch description: JOB_ID'),('save','Track an application: JOB_ID'),
+            ('applications','Your application tracker'),('stage','Update application: APP_ID stage'),
+            ('followups','Due follow-ups'),('alerts','Collection alerts'),('help','All commands and examples')]
+
+    def configure_owner_commands(self):
+        selected=self.state.get('language','auto')
+        for code in ('','en','he'):
+            language=selected if selected in ('en','he') else ('he' if code=='he' else 'en')
+            self.telegram('setMyCommands',{'scope':{'type':'chat','chat_id':self.owner},
+                'language_code':code,'commands':[{'command':name,'description':tr(description,language)}
+                    for name,description in self.command_definitions()]})
+
     def telegram(self, method, payload=None, timeout=40):
         if method=='sendMessage':
             remaining = self.state.get('send_after',0)-time.time()
@@ -260,20 +313,12 @@ class Bot:
                          method=method,timeout=300 if method=='POST' else 30)
 
     def configure_profile(self):
-        commands=[('start','Open your private job feed'),('new','Latest update with page navigation'),
-            ('jobs','Browse all stored jobs'),('preferences','Choose roles, levels and location'),
-            ('quiet','Choose quiet hours and timezone'),('status','Feed and search health'),
-            ('searches','Your collection searches'),('track','Add search: title | location'),
-            ('setsearch','Edit search: ID title | location'),('collect','Run a search now'),
-            ('pause','Pause collection for a search'),('resume','Resume collection for a search'),
-            ('notify','Turn notifications on or off'),('job','Job details: JOB_ID'),
-            ('description','Stored description: JOB_ID'),('refresh','Fetch description: JOB_ID'),
-            ('save','Track an application: JOB_ID'),('applications','Your application tracker'),
-            ('stage','Update application: APP_ID stage'),('followups','Due follow-ups'),
-            ('alerts','Collection alerts'),('help','All commands and examples')]
+        commands=self.command_definitions()
         payload={'commands':[{'command':name,'description':description} for name,description in commands]}
         self.telegram('setMyCommands',payload)
-        self.telegram('setMyCommands',{**payload,'scope':{'type':'chat','chat_id':self.owner}})
+        self.telegram('setMyCommands',{'language_code':'he','commands':[
+            {'command':name,'description':tr(description,'he')} for name,description in commands]})
+        self.configure_owner_commands()
         self.telegram('setChatMenuButton',{'menu_button':{'type':'commands'}})
         self.telegram('setChatMenuButton',{'chat_id':self.owner,'menu_button':{'type':'commands'}})
         self.telegram('setMyDescription',{'description':
@@ -282,6 +327,12 @@ class Bot:
             'are quiet, with a catch-up update afterward. Browse your saved jobs and track applications from one chat.'})
         self.telegram('setMyShortDescription',{'short_description':
             'Private hourly job alerts with links, filters, quiet hours and paginated catch-up updates.'})
+        self.telegram('setMyDescription',{'language_code':'he','description':
+            'העוזר הפרטי שלך לחיפוש עבודה. משרות חדשות מ-LinkedIn מדי שעה, עם קישורים וכפתורי עמודים. '
+            'בחרו תפקידים, רמות ותק, מיקומים ושעות שקטות. האיסוף ממשיך בשעות השקטות, ואחריהן נשלחת השלמה. '
+            'אפשר לחפש במאגר ולעקוב אחרי מועמדויות מאותו צ׳אט.'})
+        self.telegram('setMyShortDescription',{'language_code':'he','short_description':
+            'פיד משרות פרטי: עדכונים שעתיים, קישורים, סינון, שעות שקטות ומעקב מועמדויות.'})
         photo=Path(__file__).with_name('job-search-profile.jpg')
         if photo.exists():
             content=photo.read_bytes()
@@ -309,7 +360,7 @@ class Bot:
             raise ServiceError(503,'Profile photo update failed',service='telegram') from None
 
     def send(self, text, buttons=None):
-        text = str(text)[:14000]
+        text = self.t(str(text))[:14000]
         parts, chunk, size = [], [], 0
         for char in text:
             width = 2 if ord(char)>0xffff else 1
@@ -322,7 +373,7 @@ class Bot:
             time.sleep(max(0,1.05-(time.monotonic()-self.last_send)))
             data = {'chat_id':self.owner,'text':part, 'link_preview_options':{'is_disabled':True}}
             if buttons and index==len(parts)-1:
-                data['reply_markup'] = {'inline_keyboard':buttons}
+                data['reply_markup'] = {'inline_keyboard':self.local_buttons(buttons)}
             result = self.telegram('sendMessage',data)
             self.last_send = time.monotonic()
         return result
@@ -332,7 +383,7 @@ class Bot:
             return self.telegram('editMessageText',{
                 'chat_id':self.owner,'message_id':message_id,'text':text,
                 'link_preview_options':{'is_disabled':True},
-                'reply_markup':{'inline_keyboard':buttons}})
+                'reply_markup':{'inline_keyboard':self.local_buttons(buttons)}})
         except ServiceError as exc:
             if exc.status==400 and 'message is not modified' in exc.detail.lower():
                 return
@@ -346,6 +397,18 @@ class Bot:
         page=next((row for row in pages if row['part']==part),None)
         if page is None:
             raise ValueError('This page does not exist.')
+        text=page['text'].replace(' · Part ',' · Page ')
+        if self.language=='he':
+            header=text.split('\n\n',1)[0]
+            for english in ('Hourly update','Catch-up after quiet hours','Israel time','newly found jobs','newly found job','Page'):
+                header=header.replace(english,self.t(english))
+            jobs=[]
+            for job_id in json.loads(page['job_ids']):
+                row=self.state.con.execute('SELECT payload FROM deliveries WHERE job_id=?',(job_id,)).fetchone()
+                if row is not None:
+                    jobs.append(job_card(json.loads(row['payload']),'he'))
+            if len(jobs)==len(json.loads(page['job_ids'])):
+                text='\u200f'+header+'\n\n'+'\n\n'.join(jobs)
         buttons=[]
         if len(pages)>1:
             navigation=[]
@@ -360,9 +423,9 @@ class Bot:
             binding=self.state.con.execute('SELECT batch_id FROM feed_messages WHERE message_id=?',(message_id,)).fetchone()
             if binding is None or binding['batch_id']!=batch_id:
                 raise ValueError('This update is no longer available. Use /new.')
-            self.edit(message_id,page['text'].replace(' · Part ',' · Page '),buttons)
+            self.edit(message_id,text,buttons)
         else:
-            result=self.send(page['text'].replace(' · Part ',' · Page '),buttons)
+            result=self.send(text,buttons)
             with self.state.con:
                 self.state.con.execute('INSERT INTO feed_messages VALUES (?,?)',(result['message_id'],batch_id))
         return pages
@@ -380,10 +443,10 @@ class Bot:
         if not data['items']:
             self.send('No stored jobs match this search. Use /track job title | location to start collecting.')
             return
-        lines = [f"Stored jobs {offset+1}–{offset+len(data['items'])} of {data['total']}" + (f' · {query}' if query else '')]
+        lines = [self.t('Stored jobs {start}–{end} of {total}',start=offset+1,end=offset+len(data['items']),total=data['total']) + (f' · {query}' if query else '')]
         buttons = []
         for job in data['items']:
-            lines.append(f"\n{job['id']} · {job['title'][:160]}\n{(job.get('company') or 'Company unknown')[:100]} · {(job.get('location') or 'Location unknown')[:180]}\n{job['url']}")
+            lines.append(f"\n{job['id']} · {job['title'][:160]}\n{(job.get('company') or self.t('Company unknown'))[:100]} · {(job.get('location') or self.t('Location unknown'))[:180]}\n{job['url']}")
         navigation = []
         if offset:
             navigation.append({'text':'Previous','callback_data':f'page:{view_id}:{max(0,offset-5)}'})
@@ -404,9 +467,9 @@ class Bot:
         if description:
             fields += ['',description[:12000 if full else 2300]]
             if not full and len(description)>2300:
-                fields.append('Full description: /description '+job_id)
+                fields.append(self.t('Full description: /description {id}',id=job_id))
         else:
-            fields += ['','Description: '+job['details_status']+'. Use the fetch button below.']
+            fields += ['',self.t('Description: {status}. Use the fetch button below.',status=self.t(job['details_status']))]
         self.send('\n'.join(str(v) for v in fields if v is not None),
                   [[{'text':'Fetch description','callback_data':'refresh:'+job_id},
                     {'text':'Save job','callback_data':'save:'+job_id}]])
@@ -414,7 +477,7 @@ class Bot:
     def save_job(self, job_id):
         try:
             result = self.api('POST','/applications',{'job_id':self.number(job_id)})
-            self.send(f"Saved to your tracker. Application ID: {result['id']}\n{result['title']}")
+            self.send(self.t('Saved to your tracker. Application ID: {id}\n{title}',id=result['id'],title=result['title']))
         except ServiceError as exc:
             if exc.status!=409:
                 raise
@@ -427,10 +490,10 @@ class Bot:
         if stage: params['status']=stage
         if due: params['due_only']='true'
         data = self.api('GET','/applications?'+urllib.parse.urlencode(params))
-        lines = [f"{'Follow-ups due' if due else 'Applications'}: {data['total']}"]
+        lines = [f"{self.t('Follow-ups due' if due else 'Applications')}: {data['total']}"]
         for row in data['items']:
-            lines.append(f"\n#{row['id']} · {row['status']} · {row['title'][:150]}\n{row.get('company') or ''}\n{row['url']}"+
-                         (f"\nFollow-up: {row['follow_up_at']}" if row.get('follow_up_at') else ''))
+            lines.append(f"\n#{row['id']} · {self.t(row['status'])} · {row['title'][:150]}\n{row.get('company') or ''}\n{row['url']}"+
+                         ('\n'+self.t('Follow-up: {time}',time=self.time_label(row['follow_up_at'])) if row.get('follow_up_at') else ''))
         self.send('\n'.join(lines))
 
     def primary_search(self):
@@ -452,6 +515,7 @@ class Bot:
         return start<=minute<end if start<end else minute>=start or minute<end
 
     def configure_quiet(self, args=''):
+        args='off' if args.strip() in ('כיבוי','כבוי') else args
         config=self.state.get('quiet_hours',{'enabled':False,'timezone':'Asia/Jerusalem'})
         if args=='off':
             config['enabled']=False
@@ -473,13 +537,14 @@ class Bot:
         if config['enabled']:
             label=lambda m:f'{m//60:02d}:{m%60:02d}'
             schedule=f"{label(config['start'])}–{label(config['end'])} · {config['timezone']}"
-            status='Quiet now' if self.quiet_active() else 'Outside quiet hours'
+            status=self.t('Quiet now' if self.quiet_active() else 'Outside quiet hours')
         else:
-            schedule='Off · choose your hours below'
+            schedule=self.t('Off · choose your hours below')
             status=''
-        self.send('Quiet hours\n'+schedule+('\n'+status if status else '')+
-            '\n\nCollection continues. Automatic messages wait until quiet hours end, then new jobs from the quiet period arrive together with page buttons. '
-            'Your commands still work at any time.\n\nCustom: /quiet 23:00 08:00\nOptional timezone: /quiet 23:00 08:00 Europe/London',
+        explanation=(self.t('quiet_explanation') if self.language=='he' else
+            'Collection continues. Automatic messages wait until quiet hours end, then new jobs from the quiet period arrive together with page buttons. '
+            'Your commands still work at any time.\n\nCustom: /quiet 23:00 08:00\nOptional timezone: /quiet 23:00 08:00 Europe/London')
+        self.send(self.t('Quiet hours')+'\n'+schedule+('\n'+status if status else '')+'\n\n'+explanation,
             [[{'text':'23:00–08:00','callback_data':'quiet:23:00 08:00'},
               {'text':'22:00–08:00','callback_data':'quiet:22:00 08:00'}],
              [{'text':'00:00–07:00','callback_data':'quiet:00:00 07:00'},
@@ -500,27 +565,27 @@ class Bot:
         else:
             connection='Awaiting the first successful search'
         prefs=self.state.preferences()
-        lines=['Your job feed · Israel time',
-               'Delivery: '+('On' if self.state.get('notify',False) else 'Paused'),
-               'Quiet hours: '+('Active · automatic messages queued' if self.quiet_active() else
-                   ('Scheduled · /quiet' if self.state.get('quiet_hours',{}).get('enabled') else 'Off · /quiet to choose')),
-               'LinkedIn: '+connection,
-               'Roles: '+', '.join(prefs['roles'])+' · Levels: '+', '.join(prefs['levels']),
-               'Location rule: '+('Israel explicitly listed' if prefs['region']=='israel' else 'Broader locations allowed')]
+        lines=[self.t('Your job feed · Israel time'),
+               self.t('Delivery: {state}',state=self.t('On' if self.state.get('notify',False) else 'Paused')),
+               self.t('Quiet hours: {state}',state=self.t('Active · automatic messages queued' if self.quiet_active() else
+                   ('Scheduled · /quiet' if self.state.get('quiet_hours',{}).get('enabled') else 'Off · /quiet to choose'))),
+               'LinkedIn: '+self.t(connection),
+               self.t('Roles: {roles} · Levels: {levels}',roles=self.labels(prefs['roles']),levels=self.labels(prefs['levels'])),
+               self.t('Location rule: {rule}',rule=self.t('Israel explicitly listed' if prefs['region']=='israel' else 'Broader locations allowed'))]
         for row in active[:3]:
-            lines+=['',f"{row['keywords']} · {row['location'] or 'Any location'}",
-                    'Last successful search: '+local_time(row.get('last_success'),True),
-                    'Next search: '+local_time(row.get('next_due'),True)]
+            lines+=['',f"{row['keywords']} · {row['location'] or self.t('Any location')}",
+                    self.t('Last successful search: {time}',time=self.time_label(row.get('last_success'),True)),
+                    self.t('Next search: {time}',time=self.time_label(row.get('next_due'),True))]
             if row.get('status')=='partial':
-                lines.append('Coverage: limited · some results may be missing')
+                lines.append(self.t('Coverage: limited · some results may be missing'))
         if not active:
-            lines.append('Collection is paused. Use /resume to restart your search.')
+            lines.append(self.t('Collection is paused. Use /resume to restart your search.'))
         filtered=self.state.con.execute("SELECT count(*) FROM deliveries WHERE status='filtered'").fetchone()[0]
-        lines+=['',f"Saved jobs: {data['jobs']} · Filtered from feed: {filtered}",
-                f"Waiting to send: {self.state.pending_count()}",
-                'Last delivery: '+local_time(self.state.get('last_delivery_at'),True),
-                f"Descriptions: {state.get('descriptions_pending',state.get('details_pending_or_failed',0))} preparing · {state.get('descriptions_failed',0)} unavailable",
-                f"Issues: {state['open_alerts']} · Follow-ups due: {data['follow_ups_due']}"]
+        lines+=['',self.t('Saved jobs: {jobs} · Filtered from feed: {filtered}',jobs=data['jobs'],filtered=filtered),
+                self.t('Waiting to send: {count}',count=self.state.pending_count()),
+                self.t('Last delivery: {time}',time=self.time_label(self.state.get('last_delivery_at'),True)),
+                self.t('Descriptions: {pending} preparing · {failed} unavailable',pending=state.get('descriptions_pending',state.get('details_pending_or_failed',0)),failed=state.get('descriptions_failed',0)),
+                self.t('Issues: {issues} · Follow-ups due: {due}',issues=state['open_alerts'],due=data['follow_ups_due'])]
         self.send('\n'.join(lines),[[{'text':'New jobs','callback_data':'cmd:new'},
                                     {'text':'Preferences','callback_data':'cmd:preferences'}],
                                    [{'text':'Searches','callback_data':'cmd:searches'},
@@ -541,19 +606,22 @@ class Bot:
                 if len(parts)!=2:
                     raise ValueError('Use setting value, for example roles software; levels senior; age 72. Nothing changed.')
                 key,value=parts[0].casefold(),parts[1].strip().casefold()
+                key=KEY_ALIASES.get(key,key)
+                if key not in ('roles','levels','include','exclude'):
+                    value=preference_value(value)
                 if key in seen:
-                    raise ValueError('Specify '+key+' only once. Nothing changed.')
+                    raise ValueError(self.t('Specify {key} only once. Nothing changed.',key=self.t(key)))
                 seen.add(key)
                 if key in ('roles','levels'):
-                    choices=[part.strip() for part in value.split(',') if part.strip()]
+                    choices=[preference_value(part.strip()) for part in value.split(',') if part.strip()]
                     allowed=ROLES if key=='roles' else LEVELS
                     if not choices or any(part not in allowed for part in choices):
-                        raise ValueError('Choose '+key+': '+', '.join(sorted(allowed))+'. Nothing changed.')
+                        raise ValueError(self.t('Choose {key}: {choices}. Nothing changed.',key=self.t(key),choices=self.labels(sorted(allowed))))
                     prefs[key]=list(dict.fromkeys(choices))
                 elif key=='region' and value in ('israel','broad'):
                     prefs[key]=value
                 elif key in ('include','exclude'):
-                    prefs[key]=[part.strip() for part in value.split(',') if part.strip()][:20] if value!='clear' else []
+                    prefs[key]=[part.strip() for part in value.split(',') if part.strip()][:20] if value not in ('clear','נקה') else []
                 elif key=='age' and value.isascii() and value.isdigit() and 1<=int(value)<=168:
                     prefs['max_age_hours']=int(value)
                 elif key=='unknown' and value in ('keep','hide'):
@@ -573,6 +641,11 @@ class Bot:
               'Combine settings: /preferences roles software,data; levels senior,lead; age 72. '
               'Newlines and pasted /preferences commands also work. All settings are checked before anything changes. '
               'Previously filtered discoveries are rechecked when you change preferences; sent jobs stay deduplicated.')
+        if self.language=='he':
+            text=self.t('preferences_summary',roles=self.labels(prefs['roles']),levels=self.labels(prefs['levels']),
+                region=self.t('Israel must be explicitly listed' if prefs['region']=='israel' else 'Broader regions and remote locations allowed'),
+                age=prefs['max_age_hours'],unknown=self.t('kept' if prefs['keep_unknown_level'] else 'hidden'),
+                include=', '.join(prefs['include']) or self.t('Any'),exclude=', '.join(prefs['exclude']) or self.t('None'))
         self.send(text,[[{'text':'Software roles','callback_data':'pref:roles:software'},{'text':'All roles','callback_data':'pref:roles:all'}],
                         [{'text':'All seniorities','callback_data':'pref:levels:all'},{'text':'Junior','callback_data':'pref:levels:junior'}],
                         [{'text':'Senior','callback_data':'pref:levels:senior'},{'text':'Lead / Principal','callback_data':'pref:levels:lead,principal'}],
@@ -592,14 +665,17 @@ class Bot:
                 raise ValueError('Use a non-empty title and at most 200 characters per title/location. Nothing added.')
             searches.append({'keywords':keywords,'location':location})
         result=self.api('POST','/searches/bulk',{'searches':searches})
-        text=[f"Searches updated · {result['created']} added · {result['existing']} already tracked"]
+        text=[self.t('Searches updated · {created} added · {existing} already tracked',created=result['created'],existing=result['existing'])]
         for row in result['items']:
             state='Hourly collection enabled' if row['created'] else ('Already tracked' if row['enabled'] else 'Already tracked · paused')
-            text.append(f"\n#{row['id']} · {row['keywords']} | {row['location'] or 'Any location'}\n{state}")
-        text.append('\nNew searches start in the background. Existing schedules and pause settings are preserved. Use /searches to manage them.')
+            text.append(f"\n#{row['id']} · {row['keywords']} | {row['location'] or self.t('Any location')}\n{self.t(state)}")
+        text.append('\n'+self.t('New searches start in the background. Existing schedules and pause settings are preserved. Use /searches to manage them.'))
         self.send('\n'.join(text))
 
     def command(self, text):
+        if self.state.get('language','auto')=='auto' and is_hebrew_command(text):
+            self.state.set('detected_language','he')
+        text=command_alias(text)
         parts=text.strip().split(maxsplit=1)
         first=parts[0] if parts else ''
         args=parts[1] if len(parts)>1 else ''
@@ -611,7 +687,9 @@ class Bot:
                       [[{'text':'New jobs','callback_data':'cmd:new'},{'text':'Preferences','callback_data':'cmd:preferences'}],
                        [{'text':'Feed status','callback_data':'cmd:status'},{'text':'Help','callback_data':'cmd:help'}]])
         elif command=='/help':
-            self.send(HELP)
+            self.send(HELP_HE if self.language=='he' else HELP)
+        elif command=='/language':
+            self.configure_language(args)
         elif command=='/preferences':
             self.configure_preferences(args)
         elif command=='/quiet':
@@ -643,14 +721,21 @@ class Bot:
             if stage not in STAGES:
                 raise ValueError('Use /stage APP_ID stage. See /help for stages.')
             result = self.api('PATCH','/applications/'+app_id,{'status':stage})
-            self.send(f"Tracker #{result['id']}: {result['status']}\n{result['title']}")
+            self.send(self.t('Tracker #{id}: {status}\n{title}',id=result['id'],status=self.t(result['status']),title=result['title']))
         elif command=='/status':
             self.show_status()
         elif command=='/track':
             self.track_searches(args)
         elif command=='/searches':
             rows = self.api('GET','/searches')
-            self.send('Searches · Israel time\n\n'+'\n\n'.join(f"#{r['id']} · {'Active' if r['enabled'] else 'Paused'} · {r['keywords']} · {r['location']}\nEvery {r['interval_minutes']} minutes\nLast successful search: {local_time(r.get('last_success'),True)}\nNext search: {local_time(r.get('next_due'),True)}\nCoverage: {'Limited' if r['status']=='partial' else r['status'].replace('_',' ')}" for r in rows) if rows else 'No collection searches yet. Use /track job title | location.')
+            lines=[self.t('Searches · Israel time')]
+            for row in rows:
+                lines+=['',f"#{row['id']} · {self.t('Active' if row['enabled'] else 'Paused search')} · {row['keywords']} · {row['location']}",
+                    self.t('Every {minutes} minutes',minutes=row['interval_minutes']),
+                    self.t('Last successful search: {time}',time=self.time_label(row.get('last_success'),True)),
+                    self.t('Next search: {time}',time=self.time_label(row.get('next_due'),True)),
+                    self.t('Coverage: {status}',status=self.t('Limited' if row['status']=='partial' else row['status'].replace('_',' ')))]
+            self.send('\n'.join(lines) if rows else 'No collection searches yet. Use /track job title | location.')
         elif command=='/setsearch':
             search_id, _, criteria = args.partition(' ')
             if not search_id.isdigit():
@@ -664,17 +749,19 @@ class Bot:
         elif command in ('/pause','/resume'):
             args=args or self.primary_search()
             self.api('PATCH','/searches/'+self.number(args),{'enabled':command=='/resume'})
-            self.send('Search '+args+(' resumed.' if command=='/resume' else ' paused.'))
+            self.send(self.t('Search {id} resumed.' if command=='/resume' else 'Search {id} paused.',id=args))
         elif command=='/collect':
             args=args or self.primary_search()
             self.number(args)
             self.send('Collecting jobs… This can take a few minutes.')
             data = self.api('POST','/searches/'+args+'/poll')
-            self.send(f"Found: {data['found']}\nNew matches: {data['new']}\nPages: {data['pages']}\nCoverage limited: {data['coverage_limited']}\nWarning: {data.get('warning') or 'none'}")
+            self.send(self.t('Found: {found}\nNew matches: {new}\nPages: {pages}\nCoverage limited: {limited}\nWarning: {warning}',
+                found=data['found'],new=data['new'],pages=data['pages'],limited=data['coverage_limited'],warning=data.get('warning') or self.t('None')))
         elif command=='/alerts':
             rows = self.api('GET','/alerts?limit=8')
-            self.send('\n\n'.join(f"{friendly_alert(r)}\nLast seen: {local_time(r['updated_at'],True)}" for r in rows) or 'No open issues.')
+            self.send('\n\n'.join(self.alert_label(r)+'\n'+self.t('Last seen: {time}',time=self.time_label(r['updated_at'],True)) for r in rows) or 'No open issues.')
         elif command=='/notify':
+            args={'הפעלה':'on','פעיל':'on','כיבוי':'off','כבוי':'off'}.get(args,args)
             if args not in ('on','off'):
                 raise ValueError('Use /notify on or /notify off.')
             if args=='on' and not self.state.get('feed_initialized',False):
@@ -707,14 +794,19 @@ class Bot:
         chat = message.get('chat',{})
         if sender.get('id')!=self.owner or chat.get('type')!='private' or chat.get('id')!=self.owner:
             return
+        code=sender.get('language_code','').split('-')[0].lower()
+        if code:
+            self.state.set('detected_language','he' if code in ('he','iw') else 'en')
         self.state.set('chat_ready',True)
         try:
             if callback:
                 self.telegram('answerCallbackQuery',{'callback_query_id':callback['id']})
                 data = callback.get('data','').split(':')
-                if callback.get('data','').startswith('quiet:'):
+                if data[0]=='language' and len(data)==2:
+                    self.configure_language(data[1])
+                elif callback.get('data','').startswith('quiet:'):
                     self.configure_quiet(callback['data'][6:])
-                elif data[0]=='cmd' and len(data)==2 and data[1] in ('new','preferences','quiet','searches','status','help','notify on','notify off'):
+                elif data[0]=='cmd' and len(data)==2 and data[1] in ('new','preferences','quiet','language','searches','status','help','notify on','notify off'):
                     self.command('/'+data[1])
                 elif data[0]=='pref' and len(data)==3:
                     self.configure_preferences(data[1]+' '+data[2])
@@ -732,7 +824,12 @@ class Bot:
         except ValueError as exc:
             self.send(str(exc))
         except ServiceError as exc:
-            self.send(f"Request could not complete ({exc.status}): {exc.detail}\nTry again later or check /status.")
+            self.send(self.t('Request could not complete ({status}): {detail}\nTry again later or check /status.',status=exc.status,
+                detail=self.t(exc.detail)))
+
+    def alert_label(self,alert):
+        text=friendly_alert(alert)
+        return self.t(text) if self.language=='en' or tr(text,'he')!=text else self.t('open_alerts')+'\n'+text
 
     @staticmethod
     def job_digest(jobs, heading='New job matches'):
@@ -781,12 +878,12 @@ class Bot:
         for alert in self.api('GET','/alerts?limit=30'):
             key = 'alert:'+str(alert['id'])
             if not self.state.notice_sent(key) and not alert.get('acknowledged_at'):
-                self.send('Feed notice\n'+friendly_alert(alert))
+                self.send(self.t('Feed notice')+'\n'+self.alert_label(alert))
                 self.state.mark_notice(key)
         for application in self.api('GET','/applications?due_only=true&limit=100')['items']:
             key = f"followup:{application['id']}:{application.get('follow_up_at')}"
             if not self.state.notice_sent(key,within=86400):
-                self.send(f"Follow-up due: #{application['id']} · {application['title'][:180]}\n{application['url']}")
+                self.send(self.t('Follow-up due: #{id} · {title}\n{url}',id=application['id'],title=application['title'][:180],url=application['url']))
                 self.state.mark_notice(key)
         # A stopped or stuck scheduler must not look like an empty job market.
         for search in self.api('GET','/searches'):
@@ -795,7 +892,7 @@ class Bot:
             overdue = time.time()-datetime.fromisoformat(search['next_due']).timestamp()
             key = 'stale-search:'+str(search['id'])
             if overdue>max(1200,search['interval_minutes']*60) and not self.state.notice_sent(key,within=86400):
-                self.send(f"Search #{search['id']} is overdue: {search['keywords']}. Check /alerts and /status; LinkedIn may need reconnection.")
+                self.send(self.t('Search #{id} is overdue: {keywords}. Check /alerts and /status; LinkedIn may need reconnection.',id=search['id'],keywords=search['keywords']))
                 self.state.mark_notice(key)
         self.state.set('api_failure_count',0)
         if self.state.get('api_down',False):

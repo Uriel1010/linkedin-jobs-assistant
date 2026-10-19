@@ -4,6 +4,8 @@
 
 # LinkedIn Jobs API & Telegram Assistant
 
+**English · [עברית](README.he.md)**
+
 [![Checks](https://github.com/Uriel1010/linkedin-jobs-assistant/actions/workflows/checks.yml/badge.svg)](https://github.com/Uriel1010/linkedin-jobs-assistant/actions/workflows/checks.yml)
 
 Your private, server-hosted job-search feed. Collect LinkedIn jobs hourly, keep them in a searchable database, and receive new matches in Telegram—one message with page buttons.
@@ -25,7 +27,8 @@ Your private, server-hosted job-search feed. Collect LinkedIn jobs hourly, keep 
 | Stored descriptions | Background enrichment of descriptions and displayed metadata. |
 | Application tracker | Stages, notes, contacts, CV references and follow-up dates. |
 | Operations | Search history, coverage warnings, login alerts, health checks and database backups. |
-| Bot profile and menu | Profile image, descriptions and all 22 supported commands registered at startup. |
+| Hebrew and English | Localized replies, buttons, menus and profile descriptions; original job content and links are preserved. |
+| Bot profile and menu | Profile image, descriptions and all 23 supported commands registered at startup. |
 
 This is a personal browser integration using your saved LinkedIn session, not an official LinkedIn jobs API. See [source limitations](#source-limitations).
 
@@ -47,6 +50,8 @@ New installations start without searches. Create your own hourly search using th
 
 The image is an illustration with fictional jobs, not a live screenshot.
 
+
+
 - Click a job link to open it on LinkedIn.
 - Click **Next** or **Previous** to change pages in that same message.
 - `/new` reopens the latest delivered update with all its pages.
@@ -54,6 +59,29 @@ The image is an illustration with fictional jobs, not a live screenshot.
 - Feed and catalog keyboards contain navigation only. Optional details and tracking are available through commands.
 
 **“New” means newly discovered by this system.** It does not guarantee publication within the last hour. Source dates, relative posting labels, reposts and unavailable dates are shown separately. Job IDs are permanently deduplicated; a rare crash after Telegram accepts a message but before its ID is saved can repeat that update.
+
+### Hebrew and English
+
+```text
+/language he
+/language en
+/language auto
+```
+
+`/language` opens the language chooser. The default is automatic: Telegram's `he`/`iw` language selects Hebrew and English is the fallback. Explicit choices override detection and survive restarts. Hebrew command aliases also work as plain text, for example `עזרה`, `מצב`, `משרות`, `העדפות`, `שקט`, `שפה עברית`, `עקוב` and `חיפושים`.
+
+```text
+עקוב מהנדס קושחה | ישראל
+עקוב מהנדס תוכנה משובצת | ישראל
+
+העדפות תפקידים משובצת,תוכנה,בדיקות,אחר; רמות ביניים,בכיר; אזור ישראל; גיל 72; לא_ידוע שמור; כלול נקה
+```
+
+Canonical English commands remain available in both languages. Telegram slash-command names remain ASCII, with localized menu descriptions. Query text, job titles, company names, descriptions and URLs are not translated or rewritten. Hebrew feed cards isolate mixed-direction source fields for readability; changing language does not resend jobs or reset page bindings.
+
+The classifier supports Hebrew software, embedded, firmware, kernel, driver, QA and other common titles, Hebrew seniority, and Israel locations explicitly containing `ישראל`. Posting-age parsing supports labels such as `לפני 3 שעות`, `לפני שעה` and `לפני יומיים`; Hebrew repost labels preserve the distinction from original publication time.
+
+Common keyword equivalents work in both directions for frontend, backend, full stack, web developer, marketing, product manager, technical support and Python. Other custom keywords remain literal, whole-phrase matches; this is not automatic translation of arbitrary job content.
 
 ### Personalize your feed
 
@@ -163,6 +191,7 @@ Quiet hours never override a manual `/notify off`.
 | `/jobs [words]` | Browse/search the complete stored catalog |
 | `/preferences` | Edit automatic-feed filters |
 | `/quiet [START END [TIMEZONE]]` | Choose quiet hours; `/quiet off` disables them |
+| `/language [he/en/auto]` | Choose Hebrew, English or Telegram language detection |
 | `/status` | Feed health, queue, last/next search and issues |
 | `/searches` | Collection searches and IDs |
 | `/track TITLE \| LOCATION` | Add an hourly search |
@@ -379,6 +408,7 @@ linkedin-jobs-assistant/
 ├── storage.py               Jobs schema and persistence
 ├── telegram_bot.py          Commands, quiet hours, delivery and pages
 ├── feed_rules.py            Filters and job cards
+├── i18n.py                  Hebrew/English UI text and input aliases
 ├── maintenance.py           Consistent database snapshots
 ├── connect.py               Temporary sign-in desktop
 ├── setup_bot.py             Hidden-prompt token setup
@@ -462,7 +492,7 @@ The tests do not use your LinkedIn account or Telegram token. The interactive-de
 | Coverage limited | Narrow criteria or adjust `max_pages` through the API. Review `/runs` and `/alerts`; already stored jobs remain safe. |
 | Description pending/unavailable | Enrichment runs between due searches. `/refresh JOB_ID` retries under the global cooldown. |
 | Collection returns 409 | Another run, login desktop, session problem or cooldown may block it. Read the response and `/alerts` before retrying. |
-| Commands missing from Menu | Restart the updated bot to register commands, then reopen the Telegram chat if its UI is cached. |
+| Commands missing from Menu | Restart the updated bot to register commands, then reopen the Telegram chat if its UI is cached. `/language` sets the owner's preferred menu language. |
 | Existing webhook blocks startup | Use one integration per token and resolve the old webhook before switching to polling. |
 | Local API docs fail | Keep the SSH tunnel open and ensure local port 8765 is free. |
 

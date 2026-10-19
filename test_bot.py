@@ -473,6 +473,96 @@ class BotTests(unittest.TestCase):
         self.assertTrue(any(call.args[0]=='setChatMenuButton' and call.args[1].get('chat_id')==OWNER for call in calls))
         self.assertTrue(any(call.args[0]=='setMyDescription' for call in calls))
 
+    def test_hebrew_preferences_and_aliases_are_canonical_and_atomic(self):
+        self.bot.handle(self.message('העדפות תפקידים משובצת,תוכנה,בדיקות,אחר; רמות ביניים,בכיר; אזור ישראל; גיל 72; לא_ידוע שמור; כלול נקה; החרג פרונטאנד,תמיכה טכנית'))
+        prefs=self.state.preferences()
+        self.assertEqual(prefs['roles'],['embedded','software','qa','other'])
+        self.assertEqual(prefs['levels'],['mid','senior'])
+        self.assertEqual(prefs['region'],'israel')
+        self.assertEqual(prefs['max_age_hours'],72)
+        self.assertEqual(prefs['exclude'],['פרונטאנד','תמיכה טכנית'])
+        self.assertTrue(prefs['keep_unknown_level'])
+        self.assertIn('העדפות הפיד',self.bot.send.call_args.args[0])
+        before=self.state.preferences()
+        self.bot.handle(self.message('העדפות תפקידים בדיקות; גיל 999'))
+        self.assertEqual(self.state.preferences(),before)
+
+    def test_hebrew_bulk_search_preserves_query_and_location(self):
+        self.bot.api.return_value={'created':2,'existing':0,'items':[
+            {'id':1,'keywords':'מהנדס קושחה','location':'ישראל','created':True,'enabled':True},
+            {'id':2,'keywords':'מהנדס תוכנה משובצת','location':'ישראל','created':True,'enabled':True}]}
+        self.bot.handle(self.message('עקוב מהנדס קושחה | ישראל\nעקוב מהנדס תוכנה משובצת | ישראל'))
+        self.bot.api.assert_called_once_with('POST','/searches/bulk',{'searches':[
+            {'keywords':'מהנדס קושחה','location':'ישראל'},
+            {'keywords':'מהנדס תוכנה משובצת','location':'ישראל'}]})
+        self.assertIn('2 נוספו',self.bot.send.call_args.args[0])
+
+    def test_language_is_persisted_and_menu_override_can_return_to_auto(self):
+        self.bot.command('/language he')
+        self.assertEqual(self.bot.language,'he')
+        self.assertIn('שפת הבוט',self.bot.send.call_args.args[0])
+        calls=[call.args[1] for call in self.bot.telegram.call_args_list if call.args[0]=='setMyCommands']
+        self.assertEqual({call['language_code'] for call in calls},{'','en','he'})
+        self.assertTrue(all(any(c['command']=='language' for c in call['commands']) for call in calls))
+        self.state.con.close(); self.state=State(self.temp.name); self.bot.state=self.state
+        self.assertEqual(self.bot.language,'he')
+        self.bot.command('שפה אנגלית')
+        self.assertEqual(self.bot.language,'en')
+        self.bot.command('/language auto')
+        self.assertEqual(self.state.get('language'),'auto')
+
+    def test_telegram_auto_detection_and_explicit_english_override(self):
+        update=self.message('/help')
+        update['message']['from']['language_code']='he'
+        self.bot.handle(update)
+        self.assertIn('הבוט הפרטי',self.bot.send.call_args.args[0])
+        self.state.set('language','en')
+        self.bot.handle(update)
+        self.assertIn('Your private jobs',self.bot.send.call_args.args[0])
+        before=self.state.get('detected_language')
+        unauthorized=self.message('/language he',owner=9)
+        unauthorized['message']['from']['language_code']='en'
+        self.bot.handle(unauthorized)
+        self.assertEqual(self.state.get('detected_language'),before)
+        self.assertEqual(self.state.get('language'),'en')
+
+    def test_hebrew_feed_renders_existing_pages_without_resending_jobs(self):
+        self.feed_api([{**JOB,'id':str(i),'title':'מהנדס/ת תוכנה {C++}','company':'Example Ltd',
+            'url':f'https://www.linkedin.com/jobs/view/{i}/'} for i in range(7)])
+        self.bot.notifications()
+        self.state.set('language','he')
+        self.bot.send.reset_mock()
+        self.bot.feed_page(1,2,100)
+        method,payload=self.bot.telegram.call_args.args
+        self.assertEqual(method,'editMessageText')
+        self.assertIn('עדכון שעתי',payload['text'])
+        self.assertIn('עמוד 2/2',payload['text'])
+        self.assertIn('מהנדס/ת תוכנה {C++}',payload['text'])
+        self.assertIn('https://www.linkedin.com/jobs/view/5/',payload['text'])
+        self.assertIn('LinkedIn לא סיפקה',payload['text'])
+        self.bot.send.assert_not_called()
+        self.assertEqual(self.state.pending_count(),0)
+
+    def test_hebrew_send_preserves_source_text_and_localizes_buttons(self):
+        self.state.set('language','he')
+        bot=Bot('fake-token',OWNER,'fake-key',self.state)
+        bot.telegram=Mock(return_value={'message_id':1})
+        text='מהנדס/ת תוכנה · Example {company}\nhttps://www.linkedin.com/jobs/view/123/'
+        with patch('telegram_bot.time.sleep'):
+            bot.send(text,[[{'text':'Next ›','callback_data':'feed:1:2'}]])
+        payload=bot.telegram.call_args.args[1]
+        self.assertEqual(payload['text'],text)
+        self.assertEqual(payload['reply_markup']['inline_keyboard'][0][0]['text'],'הבא ›')
+        self.assertEqual(payload['reply_markup']['inline_keyboard'][0][0]['callback_data'],'feed:1:2')
+
+    def test_hebrew_profile_registers_localized_descriptions(self):
+        self.bot.configure_profile()
+        calls=self.bot.telegram.call_args_list
+        menus=[call.args[1] for call in calls if call.args[0]=='setMyCommands' and call.args[1].get('language_code')=='he']
+        self.assertTrue(menus)
+        self.assertTrue(all(any(command['command']=='language' for command in payload['commands']) for payload in menus))
+        self.assertTrue(any(call.args[0]=='setMyDescription' and call.args[1].get('language_code')=='he' for call in calls))
+
     def test_api_recovery_notice_is_sent_once(self):
         self.feed_api([])
         self.state.set('api_down',True)

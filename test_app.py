@@ -129,6 +129,17 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code,200)
         self.assertEqual(response.json()['created'],3)
 
+    def test_hebrew_search_and_catalog_round_trip(self):
+        created=self.client.post('/searches/bulk',headers=self.auth,
+            json={'searches':[{'keywords':'מהנדס קושחה','location':'ישראל'}]}).json()
+        search=created['items'][0]
+        self.assertEqual(search['keywords'],'מהנדס קושחה')
+        self.assertEqual(search['location'],'ישראל')
+        storage.save_jobs(search['id'],[{'id':'789','title':'מהנדס קושחה בכיר','company':'חברה לדוגמה',
+            'location':'ישראל','url':'https://www.linkedin.com/jobs/view/789/'}])
+        jobs=self.client.get('/catalog',headers=self.auth,params={'q':'קושחה'}).json()['items']
+        self.assertEqual(jobs[0]['title'],'מהנדס קושחה בכיר')
+
     def test_application_workflow_and_followups(self):
         search_id = self.search()
         storage.save_jobs(search_id, [{'id':'123','title':'Engineer','url':'https://www.linkedin.com/jobs/view/123/'}])
@@ -374,6 +385,24 @@ class BrowserTests(unittest.TestCase):
                     asyncio.run(connect.main())
             self.assertEqual((folder / 'session.json').read_text(), 'existing-session')
             self.assertFalse((folder / 'connecting.lock').exists())
+
+    def test_browser_extracts_hebrew_posting_labels(self):
+        from playwright.async_api import async_playwright
+        async def run():
+            async with async_playwright() as p:
+                browser=await p.chromium.launch()
+                page=await browser.new_page()
+                await page.set_content('''<li data-occludable-job-id="987">
+                    <a class="job-card-list__title--link" href="https://www.linkedin.com/jobs/view/987/"><strong>מהנדס קושחה</strong></a>
+                    <div class="job-card-container__primary-description">חברה לדוגמה</div>
+                    <div class="job-card-container__metadata-item">ישראל</div>
+                    <span>פורסם מחדש</span><span class="job-card-container__footer-item">לפני 3 שעות</span>
+                    </li>''')
+                jobs=await page.evaluate(EXTRACT)
+                self.assertEqual(jobs[0]['title'],'מהנדס קושחה')
+                self.assertEqual(jobs[0]['posted_text'],'פורסם מחדש לפני 3 שעות')
+                await browser.close()
+        asyncio.run(run())
 
 
 if __name__ == '__main__':
