@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
+  <title id="title">From scheduled searches to your private Telegram feed</title>
+  <desc id="desc">On your server, an hourly browser search saves jobs to SQLite. The API serves other apps, while the Telegram bot filters and deduplicates jobs into one paginated update. Quiet hours hold notifications.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#edf5ff"/><stop offset="1" stop-color="#effbf7"/></linearGradient>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0 0 8 4 0 8" fill="none" stroke="#4e7791" stroke-width="2"/></marker>
+  </defs>
+  <rect width="1200" height="420" rx="24" fill="url(#bg)"/>
+  <g font-family="Arial, sans-serif" fill="#122b46">
+    <text x="48" y="57" font-size="28" font-weight="700">Your server does the searching.</text>
+    <text x="48" y="87" font-size="17" fill="#49627a">One database for your apps. One clear update in Telegram.</text>
+    <rect x="40" y="131" width="1120" height="228" rx="18" fill="#fff" stroke="#cbdde9" stroke-dasharray="7 6"/>
+    <text x="61" y="157" font-size="12" font-weight="700" fill="#57758b" letter-spacing="2">DOCKER ON YOUR SERVER</text>
+    <g fill="#f5f9ff" stroke="#c6d8ed"><rect x="64" y="189" width="220" height="119" rx="15"/><rect x="348" y="189" width="220" height="119" rx="15"/><rect x="632" y="189" width="220" height="119" rx="15"/></g>
+    <rect x="916" y="189" width="220" height="119" rx="15" fill="#e9f9f3" stroke="#9bd4c0"/>
+    <g font-size="20" font-weight="700"><text x="84" y="225">Hourly search</text><text x="368" y="225">Jobs database</text><text x="652" y="225">Private bot</text><text x="936" y="225">One update</text></g>
+    <g font-size="16" fill="#4b6479"><text x="84" y="255">Saved LinkedIn session</text><text x="84" y="279">Browser collection</text><text x="368" y="255">SQLite + private API</text><text x="368" y="279">Descriptions and history</text><text x="652" y="255">Filters + deduplication</text><text x="652" y="279">Quiet-hours queue</text><text x="936" y="255">Job links + page buttons</text><text x="936" y="279">Catch-up after quiet hours</text></g>
+    <g stroke="#4e7791" stroke-width="2" marker-end="url(#arrow)"><path d="M294 248H332"/><path d="M578 248H616"/><path d="M862 248H900"/></g>
+    <text x="48" y="394" font-size="16" fill="#49627a">Runs independently of your laptop, browser tabs, and SSH tunnel.</text>
+  </g>
+</svg>

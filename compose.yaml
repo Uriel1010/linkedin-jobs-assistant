@@ -1,0 +1,66 @@
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      HOME: /tmp
+    init: true
+    ports:
+      - "127.0.0.1:8765:8765"
+      - "127.0.0.1:6080:6080"
+    volumes:
+      - ./data:/app/data
+    shm_size: 512mb
+    mem_limit: 2g
+    cpus: 1.5
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    restart: unless-stopped
+    init: true
+    user: "1000:1000"
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      JOBS_API_URL: http://api:8765
+    volumes:
+      - ./bot-data/config.json:/run/bot-config.json:ro
+      - ./data/api-key:/run/jobs-api-key:ro
+      - ./bot-data/state:/app/state
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    mem_limit: 192m
+    cpus: 0.5
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sqlite3,json,time; c=sqlite3.connect('/app/state/bot.sqlite3'); r=c.execute(\"SELECT value FROM settings WHERE key='last_poll'\").fetchone(); assert r and time.time()-json.loads(r[0])<240"]
+      interval: 30s
+      timeout: 5s
+      start_period: 45s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "3m"
+        max-file: "2"

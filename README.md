@@ -1,0 +1,457 @@
+<p align="center">
+  <img src="docs/images/profile.jpg" width="130" alt="Job-search assistant: a blue briefcase and magnifying glass">
+</p>
+
+# LinkedIn Jobs API & Telegram Assistant
+
+[![Checks](https://github.com/Uriel1010/linkedin-jobs-assistant/actions/workflows/checks.yml/badge.svg)](https://github.com/Uriel1010/linkedin-jobs-assistant/actions/workflows/checks.yml)
+
+Your private, server-hosted job-search feed. Collect LinkedIn jobs hourly, keep them in a searchable database, and receive new matches in Telegram—one message with page buttons.
+
+[Bot guide](#use-the-bot) · [Quiet hours](#quiet-hours-and-catch-up) · [Installation](#install-on-a-new-server) · [API](#connect-another-app) · [Troubleshooting](#troubleshooting)
+
+![From scheduled searches to the database, API and private Telegram feed](docs/images/how-it-works.png)
+
+## Features
+
+| Feature | What you get |
+| --- | --- |
+| Hourly searches | Collection continues on your server when your laptop is off. |
+| New-job alerts | Job-ID deduplication across searches and service restarts. |
+| One message per update | Up to five jobs per page; Previous/Next edits the same message. |
+| Quiet hours | Your schedule and timezone, continued collection, and a paginated catch-up afterward. |
+| Feed preferences | Roles, seniority, location rules, title keywords and posting-age limits. |
+| Searchable database | Browse in Telegram or connect another app through the authenticated API. |
+| Stored descriptions | Background enrichment of descriptions and displayed metadata. |
+| Application tracker | Stages, notes, contacts, CV references and follow-up dates. |
+| Operations | Search history, coverage warnings, login alerts, health checks and database backups. |
+| Bot profile and menu | Profile image, descriptions and all 22 supported commands registered at startup. |
+
+This is a personal browser integration using your saved LinkedIn session, not an official LinkedIn jobs API. See [source limitations](#source-limitations).
+
+## Use the bot
+
+Open the Telegram bot you configured. It accepts only its configured owner in a private chat.
+
+1. Open the bot and press **Start**.
+2. Open **Menu** for the command list.
+3. Run `/status` to check collection and delivery.
+4. Choose your roles and seniority with `/preferences`.
+5. Choose `/quiet` if you want quiet hours. They stay **off until you select them**.
+
+New installations start without searches. Create your own hourly search using the [installation guide](#install-on-a-new-server).
+
+### Read an update
+
+![Illustrated Telegram update with job links and page navigation](docs/images/feed-preview.png)
+
+The image is an illustration with fictional jobs, not a live screenshot.
+
+- Click a job link to open it on LinkedIn.
+- Click **Next** or **Previous** to change pages in that same message.
+- `/new` reopens the latest delivered update with all its pages.
+- `/jobs Python` searches the full database, including jobs excluded from alerts.
+- Feed and catalog keyboards contain navigation only. Optional details and tracking are available through commands.
+
+**“New” means newly discovered by this system.** It does not guarantee publication within the last hour. Source dates, relative posting labels, reposts and unavailable dates are shown separately. Job IDs are permanently deduplicated; a rare crash after Telegram accepts a message but before its ID is saved can repeat that update.
+
+### Personalize your feed
+
+Open `/preferences` for buttons, or enter:
+
+```text
+/preferences roles backend,frontend
+/preferences levels senior,lead
+/preferences region israel
+/preferences include python,backend
+/preferences exclude java
+/preferences age 48
+/preferences unknown hide
+```
+
+| Setting | Options |
+| --- | --- |
+| `roles` | `software`, `backend`, `frontend`, `fullstack`, `data`, `devops`, `ml`, `security`, `embedded`, `qa`, `support`, `research`, `management`, `other`, `all` |
+| `levels` | `intern`, `junior`, `mid`, `senior`, `lead`, `principal`, `all`; Staff titles currently belong to the principal category |
+| `region` | `israel` requires Israel explicitly in the location; `broad` removes that location rule |
+| `include` | At least one listed word/phrase must match the title; `include clear` removes the rule |
+| `exclude` | Hide titles containing any listed word/phrase; `exclude clear` removes the rule |
+| `age` | Maximum posting age, 1–168 hours, when source age can be established |
+| `unknown` | `keep` or `hide` for unknown seniority |
+
+Separate multiple selections or keywords with commas. Defaults: software roles, all seniorities, explicit Israel location, a 48-hour freshness limit and unknown seniority kept. `software` includes backend, frontend and full stack. Unknown publication dates are retained and labeled.
+
+These are title/location rules, not a CV-based suitability score. Preferences filter notifications; collection searches determine what enters the database. Editing preferences rechecks previously filtered, unsent discoveries. Baseline and already-delivered jobs stay suppressed.
+
+### Manage searches
+
+```text
+/searches
+/track Backend Engineer | Israel
+/setsearch 2 Backend Engineer | Israel
+/collect 2
+/pause 2
+/resume 2
+```
+
+Use the actual search IDs from `/searches`; `2` is an example. `/track` adds an hourly search. A blank location after `|` means any location. `/setsearch` changes criteria and retains the hourly interval.
+
+`/setsearch`, `/collect`, `/pause` and `/resume` can omit the ID when a primary search is configured or only one search exists. Manual collection respects the server's cooldown and login checks.
+
+### Quiet hours and catch-up
+
+![Example quiet-hours schedule showing continuous collection and catch-up](docs/images/quiet-hours.png)
+
+The pictured 23:00–08:00 window is an example. The bot does not choose your hours automatically.
+
+```text
+/quiet
+/quiet 23:00 08:00
+/quiet 23:00 08:00 Europe/London
+/quiet off
+```
+
+`/quiet` shows preset buttons and your current setting. Custom times use 24-hour `HH:MM` format. The default timezone is `Asia/Jerusalem`; later edits without a timezone keep your selected zone. Overnight and daytime schedules work. Start is inclusive, end is exclusive, and identical start/end times are rejected. Timezone rules handle daylight-saving changes.
+
+During quiet hours, hourly collection continues and discoveries are queued. Automatic job updates, collector alerts and follow-up reminders wait. Your commands and page buttons still work.
+
+When quiet hours end, the bot requests a fresh scan of enabled searches to check the interval since the latest collection, then sends queued matches as **one paginated catch-up update**. Existing cooldowns and source restrictions apply. If the fresh scan is blocked by a cooldown, queued jobs can still be delivered and normal scheduled collection continues. Empty periods do not produce empty job updates.
+
+The queue and quiet-period marker survive restarts. Freshness is checked at discovery time so waiting overnight does not make an otherwise matching job expire.
+
+### Pause notifications or searches
+
+| Control | Collection | Automatic messages | How it resumes |
+| --- | --- | --- | --- |
+| `/quiet …` | Continues | Wait during your chosen hours | Fresh-scan attempt and catch-up after quiet hours |
+| `/notify off` | Continues | Paused until `/notify on` | Pending discoveries remain saved; quiet hours still apply |
+| `/pause SEARCH_ID` | Stops for that search | Other searches may still send jobs | `/resume SEARCH_ID` enables that search |
+
+Quiet hours never override a manual `/notify off`.
+
+### All commands
+
+| Command | Purpose |
+| --- | --- |
+| `/start` | Welcome and shortcuts |
+| `/new` | Latest delivered update with page navigation |
+| `/jobs [words]` | Browse/search the complete stored catalog |
+| `/preferences` | Edit automatic-feed filters |
+| `/quiet [START END [TIMEZONE]]` | Choose quiet hours; `/quiet off` disables them |
+| `/status` | Feed health, queue, last/next search and issues |
+| `/searches` | Collection searches and IDs |
+| `/track TITLE \| LOCATION` | Add an hourly search |
+| `/setsearch [ID] TITLE \| LOCATION` | Edit search criteria |
+| `/collect [ID]` | Request collection now |
+| `/pause [ID]` | Disable a collection search |
+| `/resume [ID]` | Enable a collection search |
+| `/notify on` or `/notify off` | Resume/pause automatic notifications |
+| `/job JOB_ID` | Stored details and description preview |
+| `/description JOB_ID` | Full stored description |
+| `/refresh JOB_ID` | Fetch or refresh source details |
+| `/save JOB_ID` | Add a job to your application tracker |
+| `/applications [stage]` | List tracked applications |
+| `/stage APP_ID STAGE` | Update application stage |
+| `/followups` | Due follow-ups |
+| `/alerts` | Collection issues |
+| `/help` | Command help |
+
+`JOB_ID` is the numeric LinkedIn job ID in its URL. `APP_ID` is the separate tracker ID returned by `/save`. The menu supplies command names; replace example arguments yourself.
+
+### Track applications
+
+```text
+/save 1234567890
+/applications
+/stage 1 applied
+/applications interviewing
+/followups
+```
+
+Replace sample IDs with your real records. Stages: `saved`, `reviewing`, `applied`, `interviewing`, `offer`, `rejected`, `withdrawn`, `archived`.
+
+The API also edits notes, contacts, CV references and follow-up dates. A CV reference is a label/filename, not a file upload. Due follow-ups generate daily deduplicated reminders when notifications are enabled and outside quiet hours. Tracking never submits applications or contacts employers.
+
+## Install on a new server
+
+This guide uses `~/Project/linkedin-jobs-assistant` as the project directory. **Skip initialization if it already runs.** Use [maintenance](#server-maintenance) for updates.
+
+### 1. Prepare the project
+
+Requirements: Linux, Docker Engine with Compose, Python 3 and SSH access. Containers use UID/GID `1000:1000`; that user must own the project and persistent directories, or adapt the Compose user settings to your server.
+
+Clone the project on your server, then run:
+
+```sh
+mkdir -p ~/Project
+git clone https://github.com/Uriel1010/linkedin-jobs-assistant.git ~/Project/linkedin-jobs-assistant
+cd ~/Project/linkedin-jobs-assistant
+mkdir -p data bot-data/state
+chmod 700 data bot-data bot-data/state
+python3 setup_bot.py
+```
+
+The setup script asks for your numeric Telegram user ID and then the bot token at a hidden prompt. Obtain the token from Telegram BotFather. Existing configuration is never overwritten by that script.
+
+Compose creates its own network. If your host has exhausted its default Docker address pools, configure a non-overlapping private subnet for this project.
+
+### 2. Start the API
+
+```sh
+docker compose up -d --build api
+docker compose ps
+```
+
+Startup creates the schema and API key under `data/`. API port `8765` and temporary desktop port `6080` bind only to server loopback.
+
+### 3. Connect LinkedIn
+
+From a terminal **on your computer**, replace `USER@SERVER` and run:
+
+```sh
+ssh -t -L 6080:127.0.0.1:6080 -L 8765:127.0.0.1:8765 USER@SERVER 'cd ~/Project/linkedin-jobs-assistant && docker compose exec api python connect.py'
+```
+
+1. Keep that terminal open and visit [the sign-in desktop](http://127.0.0.1:6080/vnc.html).
+2. Click **Connect** and enter the temporary desktop password printed in the terminal.
+3. Sign into LinkedIn in the remote browser and complete verification yourself.
+4. Return to the terminal and press **Enter** to save the session.
+
+The desktop then closes. Your password is entered directly into LinkedIn; only LinkedIn session cookies are retained in `data/session.json`. Type `cancel` or press Ctrl+C to preserve the previous session. Reuse this procedure when the login expires.
+
+### 4. Start the bot and baseline existing jobs
+
+On the server:
+
+```sh
+docker compose up -d --build bot
+docker compose ps
+```
+
+In your bot's private Telegram chat:
+
+1. Press **Start**.
+2. Run `/track Software Engineer | Israel`, or use your own criteria.
+3. Check `/searches` and `/status` until the first collection succeeds.
+4. Run `/notify on`. Its first use silently baselines jobs already stored; later discoveries are eligible for alerts.
+5. Choose `/preferences` and, optionally, `/quiet`.
+
+Normal operation needs no laptop, browser tab or SSH tunnel. Both services use `restart: unless-stopped`; enable the Docker service at boot on a new server.
+
+Startup registers the command menu and descriptions and uploads the bundled profile picture when its contents change. Quiet-hour choices are preserved. Run only one polling process per token; startup stops if an existing webhook is detected.
+
+## Connect another app
+
+Read stored jobs through the API while keeping SQLite files private. Inside Compose use `http://api:8765`; on the server use `http://127.0.0.1:8765`.
+
+For a local app or the API docs, open a tunnel from your computer:
+
+```sh
+ssh -N -L 8765:127.0.0.1:8765 USER@SERVER
+```
+
+Open [interactive API documentation](http://127.0.0.1:8765/docs). Retrieve `data/api-key` privately in your SSH terminal and use **Authorize**. All data routes require `X-API-Key`; `/health` does not.
+
+### Read jobs
+
+Set `JOBS_API_KEY` privately in your app's environment, then:
+
+```sh
+curl --fail --silent --show-error \
+  -H "X-API-Key: $JOBS_API_KEY" \
+  'http://127.0.0.1:8765/catalog?q=python&offset=0&limit=50'
+```
+
+`/catalog` returns unique stored jobs and searches title, company and description. Use it to browse or import a snapshot.
+
+For incremental synchronization:
+
+```text
+GET /jobs?after_id=0&limit=100
+```
+
+Persist the response's `next_after_id` and send it as `after_id` next time. Event IDs may have gaps. A job can match several searches, so deduplicate records by job `id` while advancing the event cursor. An optional `search_id` supports a separate cursor per search.
+
+### API reference
+
+| Method and path | Purpose |
+| --- | --- |
+| `GET /health` | Unauthenticated health check |
+| `GET /status` | Collector, saved-session and network status |
+| `GET /overview` | Job counts, application stages and follow-ups |
+| `GET /catalog` | Unique jobs; `q`, `offset`, `limit` |
+| `GET /jobs` | Discovery events; `after_id`, optional `search_id`, `limit` |
+| `GET /jobs/{id}` | Description, metadata and enrichment status |
+| `POST /jobs/{id}/refresh` | Fetch source details |
+| `GET /searches` | Searches and last/next runs |
+| `POST /searches` | Create a search |
+| `PATCH /searches/{id}` | Edit criteria, limits, interval or enabled state |
+| `POST /searches/{id}/poll` | Request collection now |
+| `DELETE /searches/{id}` | Remove a search and its match history |
+| `GET /runs` | Collection history, counts, pages and coverage |
+| `GET /alerts` | Unresolved alerts; optional resolved history |
+| `POST /alerts/{id}/acknowledge` | Acknowledge an alert |
+| `POST /applications` | Track a stored job |
+| `GET /applications` | List/filter applications |
+| `GET /applications/{id}` | Record with status history |
+| `PATCH /applications/{id}` | Edit stage, notes, contacts, CV reference or dates |
+
+Example search body:
+
+```json
+{
+  "keywords": "Backend Engineer",
+  "location": "Israel",
+  "remote": false,
+  "interval_minutes": 60,
+  "max_pages": 8,
+  "lookback_hours": 48
+}
+```
+
+`remote: false` includes all work arrangements; `true` selects remote roles. Supported ranges: interval 30–10,080 minutes, pages 1–12, initial lookback 24–168 hours. New searches are enabled for background collection.
+
+Example application body, using a real stored job ID:
+
+```json
+{
+  "job_id": "1234567890",
+  "status": "saved",
+  "notes": "Review with my backend CV",
+  "cv_version": "backend-v2.pdf",
+  "follow_up_at": "2026-11-01T09:00:00+02:00"
+}
+```
+
+Dates require a timezone and are stored in UTC. Use JSON `null` to clear optional fields. Search/delivery times are displayed in Israel time; quiet schedules can use another chosen timezone.
+
+## Server maintenance
+
+Run on the server:
+
+```sh
+cd ~/Project/linkedin-jobs-assistant
+docker compose ps
+docker compose logs --tail=50 api
+docker compose logs --tail=50 bot
+```
+
+After updating source files, rebuild the affected service:
+
+```sh
+docker compose up -d --build --no-deps bot
+```
+
+For a full update use `docker compose up -d --build`. To stop without deleting persistent data use `docker compose stop`.
+
+### Project files
+
+```text
+linkedin-jobs-assistant/
+├── app.py                   API routes and scheduler
+├── collector.py             Browser collection and enrichment
+├── storage.py               Jobs schema and persistence
+├── telegram_bot.py          Commands, quiet hours, delivery and pages
+├── feed_rules.py            Filters and job cards
+├── maintenance.py           Consistent database snapshots
+├── connect.py               Temporary sign-in desktop
+├── setup_bot.py             Hidden-prompt token setup
+├── compose.yaml             API and bot services
+├── Dockerfile               Playwright API image
+├── Dockerfile.bot           Telegram bot image
+├── job-search-profile.jpg   Bot profile asset
+├── docs/images/             README illustrations
+├── data/                    Private API data; excluded from Git/build context
+│   ├── jobs.sqlite3
+│   ├── api-key
+│   ├── session.json
+│   └── backups/
+└── bot-data/                Private bot data; excluded from Git/build context
+    ├── config.json
+    └── state/
+        ├── bot.sqlite3
+        └── backups/
+```
+
+### Backups and recovery
+
+Consistent SQLite snapshots are created daily. Each database retains its latest **seven snapshots**. Jobs/applications are backed up under `data/backups/`; bot preferences, cursor, deliveries and page bindings under `bot-data/state/backups/`.
+
+Database snapshots exclude the API key, bot token and LinkedIn session. Back up those credential files separately and privately for a complete recovery copy. Databases can contain personal application notes and also belong in private storage.
+
+For restoration, stop the affected services, preserve current databases and newer records, then restore the chosen snapshot. Handle SQLite `-wal` and `-shm` sidecars as part of that stopped-database recovery; do not overwrite a running database with an older main file. Restart and check `/status` and `docker compose ps`.
+
+### Credentials and access
+
+| File | Purpose |
+| --- | --- |
+| `bot-data/config.json` | Bot token and authorized owner ID |
+| `data/api-key` | HTTP API authentication |
+| `data/session.json` | LinkedIn session; treat as a credential |
+
+Credential files have owner-only permissions. The bot mounts its own writable state and read-only credentials; it does not mount the LinkedIn session or jobs database. API/desktop ports bind to loopback. Telegram uses outbound long polling with no public webhook port. Logs omit private payloads and token-bearing Telegram URLs.
+
+To rotate a token, stop the bot, update its private configuration on the server, then recreate the container. To disconnect LinkedIn, stop the API and remove only the saved session; jobs remain stored. Reconnect before collecting again.
+
+### Tests and automated checks
+
+GitHub Actions runs the full test suite and scans commit history for secrets on pushes and pull requests. It uses fake credentials and temporary databases.
+
+Unit tests use fake credentials, temporary databases and local HTML fixtures. Run with source mounted read-only:
+
+```sh
+docker compose run --rm --no-deps \
+  -v "$PWD:/tests:ro" --entrypoint python bot \
+  -m unittest discover -s /tests -p 'test_bot.py'
+
+docker compose run --rm --no-deps \
+  -v "$PWD:/tests:ro" --entrypoint python bot \
+  -m unittest discover -s /tests -p 'test_feed_rules.py'
+
+docker compose run --rm --no-deps \
+  -v "$PWD:/tests:ro" --entrypoint python bot \
+  -m unittest discover -s /tests -p 'test_setup.py'
+```
+
+API tests require a test-only dependency:
+
+```sh
+docker compose run --rm --no-deps \
+  -v "$PWD:/tests:ro" api sh -c \
+  'pip install --quiet --target /tmp/testdeps httpx==0.28.1 && PYTHONPATH=/tmp/testdeps:/tests python -m unittest discover -s /tests -p test_app.py'
+```
+
+The tests do not use your LinkedIn account or Telegram token. The interactive-desktop test opens a local browser and desktop but mocks external navigation. Keep operational checks that send messages or run real searches separate from unit tests.
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| No new messages | `/status`, `/notify on`, quiet hours and enabled searches. No-new-jobs periods are silent; `/jobs` alone does not start collection. |
+| Stored jobs missing from alerts | `/preferences`, baseline suppression and previously delivered IDs. `/jobs` browses the unfiltered catalog. |
+| Bot does not reply | Press Start in the owner's private chat. Check owner ID and `docker compose ps bot`. Other users/groups are ignored. |
+| Quiet schedule looks wrong | `/quiet` shows the selected timezone; server OS timezone does not control it. Check `/notify` too. |
+| Catch-up is delayed | Check `/alerts`, API health, network cooldowns and coverage. The fresh scan respects source restrictions. |
+| Login required | Repeat [Connect LinkedIn](#3-connect-linkedin). A saved session file alone does not prove the login works. |
+| Coverage limited | Narrow criteria or adjust `max_pages` through the API. Review `/runs` and `/alerts`; already stored jobs remain safe. |
+| Description pending/unavailable | Enrichment runs between due searches. `/refresh JOB_ID` retries under the global cooldown. |
+| Collection returns 409 | Another run, login desktop, session problem or cooldown may block it. Read the response and `/alerts` before retrying. |
+| Commands missing from Menu | Restart the updated bot to register commands, then reopen the Telegram chat if its UI is cached. |
+| Existing webhook blocks startup | Use one integration per token and resolve the old webhook before switching to polling. |
+| Local API docs fail | Keep the SSH tunnel open and ensure local port 8765 is free. |
+
+## Source limitations
+
+The collector uses Playwright Chromium and your saved LinkedIn session. It does not bypass verification or access restrictions. Source layout changes or login expiry can interrupt collection.
+
+Runs have a four-minute time budget, up to 12 configured pages and up to 25 cards per page. New searches default to eight pages. Due searches take priority over description enrichment. Network batches are separated by at least 60 seconds globally.
+
+Normal runs use time since the last useful collection plus roughly two hours of overlap, capped at seven days. Longer gaps create a coverage warning. Initial runs use their configured lookback. Pagination uncertainty and page limits can make coverage partial. This is not a complete archive of every LinkedIn job.
+
+Title, seniority and location rules are best-effort classifications. Unknown salaries, work arrangements, dates and application URLs remain unknown. Reposts with the same job ID do not trigger a new-job notification.
+
+Transient failures use bounded retries and backoff. Login challenges suspend collection until reconnection; rate limits impose a cooldown. Stored jobs, application records and queued messages stay on the server.
+
+## Documentation images
+
+The SVG workflow, feed and quiet-hours images are explanatory illustrations. The profile icon was generated with imagegen and converted to JPEG for Telegram. Its original prompt is in [docs/profile-image-prompt.txt](docs/profile-image-prompt.txt).

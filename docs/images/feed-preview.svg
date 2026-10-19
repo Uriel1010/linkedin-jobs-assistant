@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="650" viewBox="0 0 1200 650" role="img" aria-labelledby="title desc">
+  <title id="title">One Telegram update with page navigation</title>
+  <desc id="desc">Illustrative Telegram message with job titles, company, location, posting information, links, and Previous and Next navigation. Buttons edit the same message. Example jobs are fictional.</desc>
+  <rect width="1200" height="650" rx="24" fill="#edf4fa"/>
+  <g font-family="Arial, sans-serif" fill="#173149">
+    <text x="48" y="65" font-size="29" font-weight="700">All the jobs. One message.</text>
+    <text x="48" y="98" font-size="18" fill="#547084">Move between pages without filling your chat.</text>
+    <rect x="48" y="133" width="650" height="451" rx="20" fill="#fff" stroke="#cedee9"/>
+    <text x="78" y="176" font-size="21" font-weight="700">Hourly update · 09:00 Israel time</text>
+    <text x="78" y="206" font-size="17" fill="#547084">7 newly found jobs · Page 1/2</text>
+    <text x="78" y="251" font-size="19" font-weight="700">Backend Engineer · Example Company</text>
+    <g font-size="16"><text x="78" y="278">Tel Aviv, Israel · Hybrid</text><text x="78" y="303">Backend</text><text x="78" y="328">Posted on LinkedIn: source date when available</text><text x="78" y="353" fill="#087cad">linkedin.com/jobs/view/…</text></g>
+    <path d="M78 374H668" stroke="#e2ebf1"/>
+    <text x="78" y="405" font-size="19" font-weight="700">Software Engineer · Another Example</text>
+    <g font-size="16"><text x="78" y="432">Haifa, Israel · On-site</text><text x="78" y="457">Posting date not provided by LinkedIn</text><text x="78" y="482" fill="#087cad">linkedin.com/jobs/view/…</text></g>
+    <rect x="78" y="513" width="280" height="44" rx="9" fill="#e6f1f9"/>
+    <rect x="370" y="513" width="298" height="44" rx="9" fill="#d8eef9"/>
+    <text x="218" y="541" font-size="17" text-anchor="middle" fill="#17688c">1/2</text>
+    <text x="519" y="541" font-size="17" text-anchor="middle" fill="#17688c">Next ›</text>
+    <text x="758" y="197" font-size="21" font-weight="700">What to expect</text>
+    <g font-size="18" fill="#49677d"><text x="758" y="240">Up to five jobs on each page</text><text x="758" y="284">Links go straight to LinkedIn</text><text x="758" y="328">Next / Previous edits this message</text><text x="758" y="372">No per-job Save / Details buttons</text><text x="758" y="416">/new reopens the latest update</text><text x="758" y="460">/jobs browses the full database</text></g>
+    <text x="48" y="620" font-size="15" fill="#647d90">Illustration, not a live screenshot. Fictional jobs; actual messages show up to five cards per page.</text>
+  </g>
+</svg>

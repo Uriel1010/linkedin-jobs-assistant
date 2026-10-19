@@ -1,0 +1,45 @@
+# Credentials and private runtime state
+data/
+bot-data/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*session*.json
+*cookies*.json
+# Databases, snapshots, logs and deployment scratch files
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+*.bak
+*.backup
+*.log
+backups/
+work/
+tmp/
+*.tar.gz
+*.zip
+# Local tooling
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+.git/
+.github/
+docs/
+README.md
+SECURITY.md
+test_*.py

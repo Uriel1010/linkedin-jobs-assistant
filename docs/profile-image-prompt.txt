@@ -1,0 +1,3 @@
+Generated with the built-in imagegen tool.
+
+Use case: logo-brand. Asset: square Telegram profile picture for a private job-search assistant. A polished, minimal briefcase combined with a magnifying glass, bold readable silhouette at tiny sizes, centered with ample margin safe for circular cropping. Clean contemporary icon, blue and teal accents, light background, subtle depth, crisp edges. No words, letters, watermark, or third-party logos. Save the image as a project asset if filesystem output is available.

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="440" viewBox="0 0 1200 440" role="img" aria-labelledby="title desc">
+  <title id="title">Quiet hours continue collecting jobs and deliver a catch-up afterward</title>
+  <desc id="desc">Example schedule from 23:00 to 08:00. Hourly searches continue, automatic notifications wait, then a fresh scan and paginated catch-up run after 08:00. The user chooses the actual schedule and timezone.</desc>
+  <defs><linearGradient id="night" x2="1"><stop stop-color="#122f55"/><stop offset="1" stop-color="#305b81"/></linearGradient></defs>
+  <rect width="1200" height="440" rx="24" fill="#f0f6fb"/>
+  <g font-family="Arial, sans-serif" fill="#173149">
+    <text x="48" y="59" font-size="29" font-weight="700">Quiet chat. Continuous collection.</text>
+    <text x="48" y="91" font-size="18" fill="#547084">You choose the hours and timezone. Quiet hours start off.</text>
+    <rect x="48" y="144" width="210" height="109" rx="15" fill="#dff4ed"/>
+    <rect x="270" y="144" width="568" height="109" rx="15" fill="url(#night)"/>
+    <rect x="850" y="144" width="302" height="109" rx="15" fill="#dff4ed"/>
+    <g font-size="20" font-weight="700"><text x="68" y="181">Before 23:00</text><text x="290" y="181" fill="#fff">23:00–08:00 · example quiet period</text><text x="870" y="181">After 08:00</text></g>
+    <g font-size="17"><text x="68" y="221">Normal job updates</text><text x="290" y="221" fill="#dcebf8">Hourly searches run; automatic messages stay queued</text><text x="870" y="221">Fresh scan + catch-up pages</text></g>
+    <g fill="#2d8b6b"><circle cx="90" cy="290" r="6"/><circle cx="222" cy="290" r="6"/><circle cx="354" cy="290" r="6"/><circle cx="486" cy="290" r="6"/><circle cx="618" cy="290" r="6"/><circle cx="750" cy="290" r="6"/><circle cx="882" cy="290" r="6"/><circle cx="1014" cy="290" r="6"/><circle cx="1140" cy="290" r="6"/></g>
+    <path d="M90 290H1140" stroke="#2d8b6b" stroke-width="2"/>
+    <text x="48" y="332" font-size="17" fill="#49677d">The database keeps growing throughout the quiet period. Commands still work whenever you need them.</text>
+    <text x="48" y="389" font-size="17" font-weight="700">Choose in the bot: /quiet</text>
+    <text x="362" y="389" font-size="17" fill="#49677d">Custom example: /quiet 23:00 08:00 Asia/Jerusalem</text>
+    <text x="48" y="419" font-size="14" fill="#647d90">Illustrative schedule. Actual scans and delivery follow scheduler timing, source availability, and cooldowns.</text>
+  </g>
+</svg>

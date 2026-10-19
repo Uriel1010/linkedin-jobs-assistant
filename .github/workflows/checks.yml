@@ -1,0 +1,50 @@
+name: Checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.63.0-noble
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install desktop and test dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends xvfb x11vnc novnc websockify python3-venv
+          python3 -m venv /tmp/testenv
+          /tmp/testenv/bin/pip install -r requirements.txt httpx==0.28.1
+      - name: Compile Python source
+        run: /tmp/testenv/bin/python -m compileall -q .
+      - name: Run isolated tests
+        run: /tmp/testenv/bin/python -m unittest discover -v
+
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Download and verify secret scanner
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          mkdir -p /tmp/gitleaks
+          cd /tmp/gitleaks
+          curl --fail --silent --show-error --location --output scanner.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl --fail --silent --show-error --location --output checksums.txt "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          expected="$(awk -v name="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" '$2 == name { print $1 }' checksums.txt)"
+          test -n "$expected"
+          printf '%s  scanner.tar.gz\n' "$expected" | sha256sum --check -
+          tar -xzf scanner.tar.gz gitleaks
+      - name: Scan commit history
+        run: /tmp/gitleaks/gitleaks git . --redact --no-banner
