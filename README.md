@@ -8,9 +8,9 @@
 
 [![Checks](https://github.com/Uriel1010/linkedin-jobs-assistant/actions/workflows/checks.yml/badge.svg)](https://github.com/Uriel1010/linkedin-jobs-assistant/actions/workflows/checks.yml)
 
-Your private, server-hosted job-search feed. Collect LinkedIn jobs hourly, keep them in a searchable database, and receive new matches in Telegram—one message with page buttons.
+Your private, server-hosted job-search feed. Collect LinkedIn jobs hourly, keep them in a searchable database, and receive new matches in Telegram—one message with page buttons. A private, mobile-friendly web dashboard gives you a focused inbox, shortlist, and application board.
 
-[Bot guide](#use-the-bot) · [Quiet hours](#quiet-hours-and-catch-up) · [Installation](#install-on-a-new-server) · [API](#connect-another-app) · [Troubleshooting](#troubleshooting)
+[Web dashboard](#web-dashboard) · [Bot guide](#use-the-bot) · [Quiet hours](#quiet-hours-and-catch-up) · [Installation](#install-on-a-new-server) · [API](#connect-another-app) · [Troubleshooting](#troubleshooting)
 
 ![From scheduled searches to the database, API and private Telegram feed](docs/images/how-it-works.png)
 
@@ -18,6 +18,7 @@ Your private, server-hosted job-search feed. Collect LinkedIn jobs hourly, keep 
 
 | Feature | What you get |
 | --- | --- |
+| Private web dashboard | Responsive inbox, dismiss/restore, shortlist, application board, search controls and CSV export in a separate container. |
 | Hourly searches | Collection continues on your server when your laptop is off. |
 | New-job alerts | Job-ID deduplication across searches and service restarts. |
 | One message per update | Compact linked titles, category tabs and page jumping; navigation edits the same message. |
@@ -31,6 +32,75 @@ Your private, server-hosted job-search feed. Collect LinkedIn jobs hourly, keep 
 | Bot profile and menu | Profile image, descriptions and all 23 supported commands registered at startup. |
 
 This is a personal browser integration using your saved LinkedIn session, not an official LinkedIn jobs API. See [source limitations](#source-limitations).
+
+## Web dashboard
+
+**Jobspace** runs in its own Docker container, alongside the API and Telegram bot.
+
+![Desktop dashboard with a focused job inbox and detail pane; fictional demonstration data](docs/images/dashboard-desktop.png)
+
+The screenshots are real captures of the included **demo mode**. All companies, jobs, application notes, and counts are fictional. No account data, credentials, personal details, or production database records are used.
+
+### Review, shortlist, and follow through
+
+- Search titles, companies, locations and descriptions. Filter by discipline, experience, work style, discovery window, or unread status.
+- Open a job in the desktop detail pane or mobile full-screen view. Source text supports Hebrew and mixed-direction content.
+- **Dismiss** jobs individually or in a selection. Use the 15-second **Undo** action, or restore them later from **Dismissed**.
+- **Save** opportunities to your shortlist. Track Saved → Reviewing → Applied → Interviewing → Offer, with rejected, withdrawn and archived stages available too.
+- Add private notes, a CV reference and a follow-up date. Applications and reminders use the same API database as Telegram.
+- Manage collection searches, pause/resume them, request a run, and review service notices.
+- Export the current filtered results as CSV. Spreadsheet formula prefixes are neutralized.
+
+Dashboard dismiss/read state is persistent in its own database. Dismissing a job hides it from the dashboard inbox; the source record stays in the API database. Telegram continues to use its own feed preferences and delivery ledger. Dashboard filters are independent of Telegram `/preferences`. Quiet hours remain managed through `/quiet`.
+
+<img src="docs/images/dashboard-mobile.png" width="320" alt="Mobile job inbox with bottom navigation, using fictional data">
+<img src="docs/images/dashboard-mobile-detail.png" width="320" alt="Mobile full-screen job details, using fictional data">
+
+![Application board with stages, notes and follow-up dates; fictional data](docs/images/dashboard-applications.png)
+
+### Start the private dashboard
+
+After the API is configured:
+
+```bash
+cd ~/Project/linkedin-jobs-assistant
+mkdir -p dashboard-data
+chmod 700 dashboard-data
+docker compose up -d --build dashboard
+docker compose ps
+```
+
+Compose binds the dashboard to **127.0.0.1:8780** on the server. It is private by default. The dashboard reads the upstream API key server-side; that key is never sent to the browser.
+
+From your computer, keep this SSH tunnel open:
+
+```bash
+ssh -N -L 8780:127.0.0.1:8780 user@your-server
+```
+
+Open [http://127.0.0.1:8780](http://127.0.0.1:8780). Retrieve the separately generated dashboard access key in your own server terminal:
+
+```bash
+cat ~/Project/linkedin-jobs-assistant/dashboard-data/access-key
+```
+
+Enter it on the sign-in screen. The browser receives an HttpOnly, SameSite session cookie valid for seven days; the access key is not saved in browser storage. Sign out revokes that session. Login attempts are rate-limited, and state-changing requests require same-origin protection.
+
+For private access on a phone, use an SSH client with local port forwarding or a trusted VPN route. `localhost` on a phone is the phone itself, so a computer's tunnel does not automatically provide phone access. For future internet access, put an authenticated HTTPS reverse proxy in front of the loopback service and set `DASHBOARD_SECURE_COOKIE=1`. Do not expose the HTTP container port directly.
+
+The `dashboard-data/` volume preserves dismiss/read state and sessions across container restarts. Daily consistent database snapshots are kept in `dashboard-data/backups/`, retaining seven snapshots. Applications and notes are backed up with the API database. The container runs without root, with a read-only filesystem, dropped capabilities, and memory/CPU limits.
+
+### Reproduce the sanitized screenshots
+
+The browser tests launch their own isolated demo server using temporary state and built-in fictional records. They never connect to the production API. In the development test environment with Playwright Chromium installed:
+
+```bash
+DASHBOARD_SCREENSHOTS=docs/images python -m unittest test_dashboard_browser -v
+```
+
+`DASHBOARD_BROWSER_PATH` can point to a locally installed Chromium browser. Do not set `DASHBOARD_DEMO=1` on the production service: demo mode intentionally uses fictional data and skips sign-in. It belongs only in a separate, temporary loopback preview.
+
+![Collection management and health screen with fictional searches](docs/images/dashboard-searches.png)
 
 ## Use the bot
 
@@ -411,6 +481,9 @@ linkedin-jobs-assistant/
 ├── app.py                   API routes and scheduler
 ├── collector.py             Browser collection and enrichment
 ├── storage.py               Jobs schema and persistence
+├── dashboard.py             Private dashboard backend and authentication
+├── dashboard_static/        Responsive browser interface
+├── Dockerfile.dashboard     Separate dashboard container
 ├── telegram_bot.py          Commands, quiet hours, delivery and pages
 ├── feed_ui.py               Compact HTML cards, role tabs and page layout
 ├── feed_rules.py            Filters and job cards

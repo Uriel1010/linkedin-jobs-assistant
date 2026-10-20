@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f5f6f2">
+<meta name="description" content="Your private job-search workspace. Review opportunities, save your shortlist and track applications.">
+<title>Jobspace — Your next chapter</title>
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/style.css">
+<script defer src="/assets/app.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to jobs</a>
+<div id="login" class="login-screen" hidden>
+  <form id="login-form" class="login-card">
+    <div class="brand"><span class="brand-mark">j.</span> jobspace<span class="brand-dot">•</span></div>
+    <span class="eyebrow">YOUR PRIVATE WORKSPACE</span>
+    <h1>A little closer<br>to your next chapter.</h1>
+    <p>Sign in to review opportunities and keep your search moving.</p>
+    <label for="access-key">Dashboard access key</label>
+    <input id="access-key" type="password" autocomplete="current-password" required placeholder="Enter your access key">
+    <button class="primary" type="submit">Open my workspace <span aria-hidden="true">↗</span></button>
+    <p id="login-error" class="error" role="alert"></p>
+    <small>Your key is stored on your server in<br><code>dashboard-data/access-key</code></small>
+  </form>
+</div>
+<div id="app" hidden>
+  <aside class="sidebar">
+    <a class="brand" href="/"><span class="brand-mark">j.</span> jobspace<span class="brand-dot">•</span></a>
+    <span class="eyebrow nav-label">YOUR WORKSPACE</span>
+    <nav aria-label="Main navigation">
+      <button data-view="inbox" class="nav active"><span data-icon="inbox"></span><span>Job inbox</span><b id="count-inbox">—</b></button>
+      <button data-view="saved" class="nav"><span data-icon="bookmark"></span><span>Shortlist</span><b id="count-saved">—</b></button>
+      <button data-view="applications" class="nav"><span data-icon="columns"></span><span>Applications</span></button>
+      <button data-view="dismissed" class="nav"><span data-icon="archive"></span><span>Dismissed</span><b id="count-dismissed">—</b></button>
+    </nav>
+    <span class="eyebrow nav-label">BEHIND THE SCENES</span>
+    <nav aria-label="Collection settings"><button data-view="searches" class="nav"><span data-icon="radar"></span><span>Searches & health</span></button></nav>
+    <div class="sidebar-bottom"><div class="connection"><i></i><span>Private server workspace</span></div><p>One place for your next move.</p><button id="logout" class="text-button"><span data-icon="logout"></span> Sign out</button></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><span class="breadcrumb">Workspace <span>/</span> <b id="breadcrumb">Job inbox</b></span><div class="top-actions"><span id="demo-badge" class="demo-badge" hidden>DEMO · FICTIONAL DATA</span><span class="private-badge"><span data-icon="lock"></span> Private</span><button id="refresh" class="icon-button" aria-label="Refresh jobs" title="Refresh jobs"><span data-icon="refresh"></span></button></div></header>
+    <main id="main" tabindex="-1">
+      <section class="page-heading"><div><span class="eyebrow" id="kicker">GOOD OPPORTUNITIES. A CLEARER HEAD.</span><h1 id="page-title">Your next chapter.</h1><p id="page-subtitle">A focused place to find, consider, and make your next move.</p></div><button id="export" class="secondary"><span data-icon="download"></span> Export jobs</button></section>
+      <div id="global-error" class="error-banner" role="alert" hidden></div>
+      <section id="jobs-view">
+        <div class="stats"><div><span class="stat-label">In your inbox</span><strong id="stat-inbox">—</strong><small>Ready to explore</small></div><div><span class="stat-label">On your shortlist</span><strong id="stat-saved">—</strong><small>Worth a closer look</small></div><div class="stat-accent"><span class="stat-label">In progress</span><strong id="stat-progress">—</strong><small>Applications moving forward <span aria-hidden="true">↗</span></small></div></div>
+        <div class="filter-panel">
+          <div class="search-row"><label class="search-input"><span data-icon="search"></span><input id="query" type="search" placeholder="Search title, company, location, or skills" aria-label="Search jobs"></label><button id="filter-toggle" class="secondary mobile-only" aria-expanded="false"><span data-icon="filter"></span> Filters</button><label class="sort-label"><span>Sort by</span><select id="sort" aria-label="Sort jobs"><option value="newest">Newest discovered</option><option value="oldest">Oldest discovered</option><option value="title">Job title A–Z</option></select></label></div>
+          <div class="filters" id="filters"><label>Discipline<select id="role"><option value="all">All disciplines</option><option value="embedded">Embedded & firmware</option><option value="software">Software engineering</option><option value="qa">Quality & testing</option><option value="data">Data</option><option value="devops">DevOps & platform</option><option value="ml">AI & machine learning</option><option value="security">Security</option><option value="research">Research</option><option value="other">Other titles</option></select></label><label>Experience<select id="level"><option value="all">All experience</option><option value="junior">Junior</option><option value="mid">Mid-level</option><option value="senior">Senior</option><option value="lead">Lead</option><option value="principal">Staff / Principal</option><option value="intern">Intern / Student</option><option value="unknown">Not specified</option></select></label><label>Work style<select id="mode"><option value="all">Any work style</option><option value="Hybrid">Hybrid</option><option value="Remote">Remote</option><option value="On-site">On-site</option></select></label><label>Discovered<select id="days"><option value="all">Any time</option><option value="1">Last 24 hours</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option></select></label><label class="check-label"><input id="unread" type="checkbox"> Unread only</label><button id="clear-filters" class="text-button">Reset</button></div>
+        </div>
+        <div class="results-heading"><h2 id="results-count">Loading opportunities…</h2><div><button id="select-page" class="text-button">Select page</button><button id="bulk-dismiss" class="text-button danger" hidden>Dismiss selected</button></div></div>
+        <div class="inbox-layout"><div class="job-column"><div id="job-list" aria-live="polite" aria-busy="true"></div><div id="pagination" class="pagination"></div></div><aside id="detail-panel" class="detail-panel" aria-label="Job details"><div class="detail-placeholder"><span class="large-symbol">↗</span><h2>Good things ahead.</h2><p>Select an opportunity to read the details, take a note, or make your next move.</p><span class="pill">Your search, at your pace.</span></div></aside></div>
+      </section>
+      <section id="applications-view" hidden><div class="board-toolbar"><p>Keep the next step in sight. Open a card to update its stage or notes.</p><label>Show<select id="board-filter"><option value="active">Active applications</option><option value="all">All stages</option></select></label></div><div id="board" class="board"></div></section>
+      <section id="searches-view" hidden><div class="section-heading"><div><h2>Your collection schedule</h2><p>Searches run on your server. Telegram quiet hours are managed with /quiet.</p></div><button id="add-search" class="primary">+ Add search</button></div><div id="health-summary" class="health-summary"></div><div id="search-list" class="search-grid"></div><div class="section-heading"><div><h2>Service notices</h2><p>Collection issues and description availability, without interrupting your inbox.</p></div></div><div id="alert-list"></div></section>
+      <footer class="footnote">Discovered dates show when this workspace found a job. Source posting dates may be unavailable.</footer>
+    </main>
+  </div>
+</div>
+<div id="toast" class="toast" role="status" hidden><span></span><button id="undo" hidden>Undo</button></div>
+<dialog id="editor"><form id="editor-form"><div class="dialog-heading"><h2 id="editor-title">Application notes</h2><button type="button" class="icon-button" id="close-editor" aria-label="Close dialog">×</button></div><div id="editor-fields"></div><div class="dialog-actions"><button type="button" class="secondary" id="cancel-editor">Cancel</button><button type="submit" class="primary">Save changes</button></div></form></dialog>
+</body></html>
