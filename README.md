@@ -20,7 +20,7 @@ Your private, server-hosted job-search feed. Collect LinkedIn jobs hourly, keep 
 | --- | --- |
 | Hourly searches | Collection continues on your server when your laptop is off. |
 | New-job alerts | Job-ID deduplication across searches and service restarts. |
-| One message per update | Up to five jobs per page; Previous/Next edits the same message. |
+| One message per update | Compact linked titles, category tabs and page jumping; navigation edits the same message. |
 | Quiet hours | Your schedule and timezone, continued collection, and a paginated catch-up afterward. |
 | Feed preferences | Roles, seniority, location rules, title keywords and posting-age limits. |
 | Searchable database | Browse in Telegram or connect another app through the authenticated API. |
@@ -52,13 +52,17 @@ The image is an illustration with fictional jobs, not a live screenshot.
 
 
 
-- Click a job link to open it on LinkedIn.
-- Click **Next** or **Previous** to change pages in that same message.
+- Click a **job title** to open it on LinkedIn. Each compact card shows company, city, role, seniority when known, and posting date when available.
+- Click **Next** / **Previous**, **«** / **»** for first/last, or the **page counter** to choose a page. Category tabs narrow the same update to Embedded, Software, QA, or other matching groups.
 - `/new` reopens the latest delivered update with all its pages.
 - `/jobs Python` searches the full database, including jobs excluded from alerts.
 - Feed and catalog keyboards contain navigation only. Optional details and tracking are available through commands.
 
-**“New” means newly discovered by this system.** It does not guarantee publication within the last hour. Source dates, relative posting labels, reposts and unavailable dates are shown separately. Job IDs are permanently deduplicated; a rare crash after Telegram accepts a message but before its ID is saved can repeat that update.
+Discoveries from all searches are combined into one digest at the next hourly boundary. The first notification check can deliver immediately; quiet-hours catch-up and failed-delivery retries can also run between boundaries. Empty hours are silent. `/status` shows the next digest time. Routine description-refresh failures stay in `/status` and `/alerts`; connection failures and due follow-ups still notify you.
+
+Older updates use your current preferences when reopened, and show a label when some original jobs are hidden. Category selection changes the count and page numbers for that view.
+
+**“New” means newly discovered by this system.** It does not guarantee publication within the last hour. Cards distinguish known source dates, reposts with an unknown original date, and unavailable dates. Raw source metadata remains available through `/job JOB_ID`. Job IDs are permanently deduplicated; a rare crash after Telegram accepts a message but before its ID is saved can repeat that update.
 
 ### Hebrew and English
 
@@ -112,10 +116,11 @@ Open `/preferences` for buttons, or enter:
 | `region` | `israel` requires Israel explicitly in the location; `broad` removes that location rule |
 | `include` | At least one listed word/phrase must match the title; `include clear` removes the rule |
 | `exclude` | Hide titles containing any listed word/phrase; `exclude clear` removes the rule |
+| `other_scope` | `technical` (default): keep related engineering titles in `other`; `all`: allow every uncategorized title |
 | `age` | Maximum posting age, 1–168 hours, when source age can be established |
 | `unknown` | `keep` or `hide` for unknown seniority |
 
-Separate multiple selections or keywords with commas. Defaults: software roles, all seniorities, explicit Israel location, a 48-hour freshness limit and unknown seniority kept. `software` includes backend, frontend and full stack. Unknown publication dates are retained and labeled.
+Separate multiple selections or keywords with commas. Defaults: software roles, all seniorities, explicit Israel location, a 48-hour freshness limit and unknown seniority kept. `software` includes backend, frontend and full stack. Unknown publication dates are retained and labeled. Selecting `other` keeps related electronics, systems and integration engineering by default, excluding unrelated uncategorized retail, legal or sales titles. Use `/preferences other_scope all` to opt into every uncategorized title; `roles all` also keeps every category. These are title rules, so review your results and refine exclusions as needed.
 
 These are title/location rules, not a CV-based suitability score. Preferences filter notifications; collection searches determine what enters the database. Editing preferences rechecks previously filtered, unsent discoveries. Baseline and already-delivered jobs stay suppressed.
 
@@ -407,6 +412,7 @@ linkedin-jobs-assistant/
 ├── collector.py             Browser collection and enrichment
 ├── storage.py               Jobs schema and persistence
 ├── telegram_bot.py          Commands, quiet hours, delivery and pages
+├── feed_ui.py               Compact HTML cards, role tabs and page layout
 ├── feed_rules.py            Filters and job cards
 ├── i18n.py                  Hebrew/English UI text and input aliases
 ├── maintenance.py           Consistent database snapshots

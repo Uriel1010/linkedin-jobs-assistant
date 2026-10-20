@@ -1,24 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="650" viewBox="0 0 1200 650" role="img" aria-labelledby="title desc">
-  <title id="title">One Telegram update with page navigation</title>
-  <desc id="desc">Illustrative Telegram message with job titles, company, location, posting information, links, and Previous and Next navigation. Buttons edit the same message. Example jobs are fictional.</desc>
-  <rect width="1200" height="650" rx="24" fill="#edf4fa"/>
-  <g font-family="Arial, sans-serif" fill="#173149">
-    <text x="48" y="65" font-size="29" font-weight="700">All the jobs. One message.</text>
-    <text x="48" y="98" font-size="18" fill="#547084">Move between pages without filling your chat.</text>
-    <rect x="48" y="133" width="650" height="451" rx="20" fill="#fff" stroke="#cedee9"/>
-    <text x="78" y="176" font-size="21" font-weight="700">Hourly update · 09:00 Israel time</text>
-    <text x="78" y="206" font-size="17" fill="#547084">7 newly found jobs · Page 1/2</text>
-    <text x="78" y="251" font-size="19" font-weight="700">Backend Engineer · Example Company</text>
-    <g font-size="16"><text x="78" y="278">Tel Aviv, Israel · Hybrid</text><text x="78" y="303">Backend</text><text x="78" y="328">Posted on LinkedIn: source date when available</text><text x="78" y="353" fill="#087cad">linkedin.com/jobs/view/…</text></g>
-    <path d="M78 374H668" stroke="#e2ebf1"/>
-    <text x="78" y="405" font-size="19" font-weight="700">Software Engineer · Another Example</text>
-    <g font-size="16"><text x="78" y="432">Haifa, Israel · On-site</text><text x="78" y="457">Posting date not provided by LinkedIn</text><text x="78" y="482" fill="#087cad">linkedin.com/jobs/view/…</text></g>
-    <rect x="78" y="513" width="280" height="44" rx="9" fill="#e6f1f9"/>
-    <rect x="370" y="513" width="298" height="44" rx="9" fill="#d8eef9"/>
-    <text x="218" y="541" font-size="17" text-anchor="middle" fill="#17688c">1/2</text>
-    <text x="519" y="541" font-size="17" text-anchor="middle" fill="#17688c">Next ›</text>
-    <text x="758" y="197" font-size="21" font-weight="700">What to expect</text>
-    <g font-size="18" fill="#49677d"><text x="758" y="240">Up to five jobs on each page</text><text x="758" y="284">Links go straight to LinkedIn</text><text x="758" y="328">Next / Previous edits this message</text><text x="758" y="372">No per-job Save / Details buttons</text><text x="758" y="416">/new reopens the latest update</text><text x="758" y="460">/jobs browses the full database</text></g>
-    <text x="48" y="620" font-size="15" fill="#647d90">Illustration, not a live screenshot. Fictional jobs; actual messages show up to five cards per page.</text>
-  </g>
-</svg>
+<title id="title">Compact Telegram digest with categories and page jumping</title><desc id="desc">Illustration with fictional jobs. Linked titles, compact metadata, category tabs, and a clickable page counter all work in one message.</desc>
+<rect width="1200" height="650" rx="24" fill="#edf4fa"/>
+<g font-family="Arial,sans-serif" fill="#173149">
+<text x="48" y="65" font-size="29" font-weight="700">Find the right job faster.</text>
+<text x="48" y="98" font-size="18" fill="#547084">One hourly digest. Categories and pages in the same message.</text>
+<rect x="48" y="130" width="650" height="455" rx="20" fill="#fff" stroke="#cedee9"/>
+<text x="78" y="171" font-size="21" font-weight="700">Hourly update · 09:00</text><text x="78" y="201" font-size="17" fill="#547084">32 newly found jobs · Page 1/7</text>
+<text x="78" y="247" font-size="20" fill="#087cad" font-weight="700">1. Embedded Software Engineer ↗</text>
+<text x="78" y="276" font-size="16">Example Company · Haifa · Hybrid</text><text x="78" y="302" font-size="16" fill="#547084">Embedded · Senior · Posted today</text>
+<path d="M78 323H668" stroke="#e2ebf1"/>
+<text x="78" y="355" font-size="20" fill="#087cad" font-weight="700">2. Firmware Engineer ↗</text>
+<text x="78" y="384" font-size="16">Another Example · Tel Aviv · On-site</text><text x="78" y="410" font-size="16" fill="#547084">Embedded · Date not listed</text>
+<text x="78" y="449" font-size="15" fill="#547084">Tap a title to open LinkedIn.</text>
+<g fill="#e6f1f9"><rect x="78" y="466" width="145" height="38" rx="8"/><rect x="233" y="466" width="220" height="38" rx="8"/><rect x="463" y="466" width="205" height="38" rx="8"/></g>
+<g font-size="16" text-anchor="middle" fill="#17688c"><text x="150" y="491">✓ All 32</text><text x="343" y="491">Embedded 22</text><text x="565" y="491">Software 10</text></g>
+<g fill="#d8eef9"><rect x="78" y="516" width="180" height="42" rx="8"/><rect x="270" y="516" width="245" height="42" rx="8"/><rect x="527" y="516" width="141" height="42" rx="8"/></g>
+<g font-size="18" text-anchor="middle" fill="#17688c"><text x="168" y="543">1/7 ▦</text><text x="392" y="543">Next ›</text><text x="597" y="543">»</text></g>
+<text x="751" y="195" font-size="22" font-weight="700">Less reading. Faster navigation.</text>
+<g font-size="18" fill="#49677d"><text x="751" y="240">Linked titles, compact cards</text><text x="751" y="286">Your selected roles appear first</text><text x="751" y="332">Category tabs narrow the update</text><text x="751" y="378">Tap the counter to pick a page</text><text x="751" y="424">First / last page shortcuts</text><text x="751" y="470">Up to five jobs per page</text><text x="751" y="516">No per-job Save / Details buttons</text></g>
+<text x="48" y="620" font-size="15" fill="#647d90">Illustration, not a live screenshot. Fictional jobs; actual page sizes depend on card length.</text></g></svg>

@@ -212,3 +212,19 @@ def command_alias(text):
 def is_hebrew_command(text):
     first=text.strip().split(maxsplit=1)
     return bool(first and first[0].lstrip('/') in COMMAND_ALIASES)
+
+
+HE.update({'Reposted · original date unknown':'פורסם מחדש · התאריך המקורי לא ידוע',
+    'Posted today':'פורסם היום','Posted yesterday':'פורסם אתמול','Date not listed':'תאריך לא צוין',
+    'Hybrid':'היברידי','Remote':'מרחוק','On-site':'במשרד',
+    'Matching your current preferences':'תואם להעדפות הנוכחיות שלך',
+    'Tap a title to open LinkedIn.':'לחיצה על הכותרת פותחת את LinkedIn.',
+    'All':'הכול','Choose a page':'בחירת עמוד','Back to jobs':'חזרה למשרות',
+    'Uncategorized roles: related engineering only':'תפקידים לא מסווגים: הנדסה קרובה בלבד',
+    'Uncategorized roles: all titles':'תפקידים לא מסווגים: כל הכותרות'})
+
+HE.update({'Next digest: {time}':'העדכון הבא: {time}',
+ 'No jobs match your current preferences. Use /preferences to adjust.':'אין משרות שתואמות להעדפות הנוכחיות. לשינוי: /preferences',
+ 'Related engineering only':'הנדסה קרובה בלבד','All uncategorized titles':'כל הכותרות הלא מסווגות'})
+KEY_ALIASES['אחרים']='other_scope'
+VALUE_ALIASES['טכני']='technical'

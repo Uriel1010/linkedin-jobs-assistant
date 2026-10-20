@@ -7,7 +7,7 @@ from i18n import tr, source
 ROLES = {'software','backend','frontend','fullstack','data','devops','ml','security','embedded','qa','support','research','management','other','all'}
 LEVELS = {'intern','junior','mid','senior','lead','principal','all'}
 DEFAULT_PREFERENCES = {'roles':['software'],'levels':['all'],'region':'israel',
-                       'include':[],'exclude':[],'max_age_hours':48,'keep_unknown_level':True}
+                       'include':[],'exclude':[],'max_age_hours':48,'keep_unknown_level':True,'other_scope':'technical'}
 KEYWORD_EQUIVALENTS=[('frontend','front end','front-end','פרונטאנד','פרונט','צד לקוח'),
     ('full stack','fullstack','full-stack','פול סטאק','פולסטאק','פול-סטאק'),
     ('web developer','web development','מפתח ווב','מפתחת ווב','מפתח אתרים','מפתחת אתרים','פיתוח אתרים'),
@@ -18,7 +18,7 @@ KEYWORD_EQUIVALENTS=[('frontend','front end','front-end','פרונטאנד','פ�
 
 def role_of(title):
     title=title.casefold()
-    patterns=[('management',r'\b(director|head of|engineering manager|vice president|vp of|מנהל(?:ת)? פיתוח|מנהל(?:ת)? הנדסה|ראש מחלקה)\b'),
+    patterns=[('management',r'\b(director|head of|engineering manager|vice president|vp(?: of)? (?:engineering|sales)|chief\s+\w+\s+officer|מנהל(?:ת)? פיתוח|מנהל(?:ת)? הנדסה|ראש מחלקה)\b'),
               ('support',r'\b(support|customer success|sales engineer|solutions engineer|תמיכה|הצלחת לקוח)\b'),
               ('qa',r'\b(validation|verification|quality assurance|qa|test engineer|testing engineer|בדיקות|בודק(?:ת)?|אוטומציה|אבטחת איכות)\b'),
               ('embedded',r'\b(firmware|embedded|silicon|hardware|asic|fpga|low[ -]level|linux kernel|kernel engineer|device drivers?|bsp|board support package|משובצ(?:ת|ות)|אמבדד|קושחה|חומרה|ליבת לינוקס|קרנל|דרייבר(?:ים)?|מנהלי? התקן|רמה נמוכה)\b'),
@@ -107,6 +107,10 @@ def match_job(job, preferences, now=None):
         allowed|={'backend','frontend','fullstack'}
     if 'all' not in roles and role not in allowed:
         return False,'Different role: '+role
+    if role=='other' and 'all' not in roles and prefs['other_scope']=='technical':
+        technical=re.search(r'\b(electronics?|electrical|integrator|integration|systems? engineer|systems? architect|computer vision|ai (?:sw|system|research) engineer|r&d software|אינטגרטור|אינטגרציה|אלקטרוניקה|מהנדס(?:ת)? מערכות|מהנדס(?:ת)? חשמל)\b',title.casefold())
+        if not technical:
+            return False,'Unclassified title lacks software, embedded or related technical context'
     level=level_of(job)
     if 'all' not in prefs['levels']:
         if level and level not in prefs['levels']:

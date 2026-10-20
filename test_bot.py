@@ -141,7 +141,7 @@ class BotTests(unittest.TestCase):
         self.assertIn('25 newly found jobs',self.bot.send.call_args.args[0])
         self.assertIn('Page 1/5',self.bot.send.call_args.args[0])
         buttons=self.bot.send.call_args.args[1][0]
-        self.assertEqual([b['text'] for b in buttons],['1/5','Next ›'])
+        self.assertEqual([b['text'] for b in buttons],['1/5 ▦','Next ›','»'])
         text=self.bot.send.call_args.args[0]
         for part in range(2,6):
             self.bot.feed_page(1,part,100)
@@ -539,7 +539,7 @@ class BotTests(unittest.TestCase):
         self.assertIn('עמוד 2/2',payload['text'])
         self.assertIn('מהנדס/ת תוכנה {C++}',payload['text'])
         self.assertIn('https://www.linkedin.com/jobs/view/5/',payload['text'])
-        self.assertIn('LinkedIn לא סיפקה',payload['text'])
+        self.assertIn('תאריך לא צוין',payload['text'])
         self.bot.send.assert_not_called()
         self.assertEqual(self.state.pending_count(),0)
 
@@ -594,6 +594,82 @@ class BotTests(unittest.TestCase):
                 bot.telegram('sendMessage',{})
         self.assertFalse(self.state.get('chat_ready'))
         self.assertEqual(self.state.pending_count(),1)
+
+
+    def test_hourly_digest_coalesces_separate_searches(self):
+        self.feed_api([])
+        self.state.set('next_digest_at',2000000000)
+        with patch('telegram_bot.time.time',return_value=1999999000):
+            self.feed_api([JOB]); self.bot.notifications()
+            self.feed_api([{**JOB,'id':'456'}]); self.bot.notifications()
+        self.bot.send.assert_not_called()
+        self.assertEqual(self.state.pending_count(),2)
+        with patch('telegram_bot.time.time',return_value=2000000001):
+            self.bot.notifications()
+        self.bot.send.assert_called_once()
+        self.assertIn('2 newly found jobs',self.bot.send.call_args.args[0])
+        self.assertGreater(self.state.get('next_digest_at'),2000000001)
+
+    def test_empty_hour_waits_for_next_digest(self):
+        self.feed_api([])
+        with patch('telegram_bot.time.time',return_value=2000000000):
+            self.bot.notifications()
+            self.feed_api([JOB]); self.bot.notifications()
+        self.bot.send.assert_not_called()
+        self.assertEqual(self.state.pending_count(),1)
+
+    def test_category_navigation_and_page_picker_edit_same_message(self):
+        prefs=self.state.preferences(); prefs['roles']=['embedded','software']; self.state.set_preferences(prefs)
+        self.feed_api([{**JOB,'id':str(i),'title':'Embedded Engineer' if i<7 else 'Software Engineer'} for i in range(12)])
+        self.bot.notifications()
+        self.assertIn('Embedded Engineer',self.bot.send.call_args.args[0])
+        self.bot.send.reset_mock()
+        self.bot.feed_page(1,1,100,'embedded')
+        payload=self.bot.telegram.call_args.args[1]
+        self.assertEqual(payload['message_id'],100)
+        self.assertIn('7 newly found jobs',payload['text'])
+        self.assertNotIn('Software Engineer',payload['text'])
+        self.bot.feed_jump(1,'embedded',1,100)
+        keyboard=self.bot.telegram.call_args.args[1]['reply_markup']['inline_keyboard']
+        self.assertEqual(keyboard[0][1]['callback_data'],'feed:1:2:embedded')
+        self.bot.feed_page(1,2,100,'embedded')
+        self.assertIn('Page 2/2',self.bot.telegram.call_args.args[1]['text'])
+        self.bot.send.assert_not_called()
+        with self.assertRaises(ValueError):
+            self.bot.feed_jump(1,'embedded',1,999)
+
+    def test_large_page_picker_reaches_last_page(self):
+        self.feed_api([{**JOB,'id':str(i)} for i in range(225)])
+        self.bot.notifications()
+        self.bot.feed_jump(1,'all',23,100)
+        keyboard=self.bot.telegram.call_args.args[1]['reply_markup']['inline_keyboard']
+        self.assertTrue(any(b['callback_data']=='feed:1:45:all' for row in keyboard for b in row))
+
+    def test_description_alerts_stay_in_alerts_command(self):
+        def api(method,path,payload=None):
+            if path.startswith('/jobs?'): return {'items':[],'next_after_id':0}
+            if path.startswith('/alerts'): return [{'id':9,'alert_key':'details:123','message':'No description'}]
+            if path=='/searches': return []
+            return {'items':[]}
+        self.feed_api([]); self.bot.api.side_effect=api
+        self.bot.notifications()
+        self.bot.send.assert_not_called()
+
+    def test_other_role_scope_is_user_configurable(self):
+        self.bot.configure_preferences('roles other; other_scope all')
+        self.assertEqual(self.state.preferences()['other_scope'],'all')
+        self.bot.configure_preferences('other_scope technical')
+        self.assertEqual(self.state.preferences()['other_scope'],'technical')
+
+    def test_legacy_snapshot_hides_irrelevant_titles(self):
+        prefs=self.state.preferences(); prefs.update(roles=['software','other'],other_scope='all')
+        self.state.set_preferences(prefs)
+        self.state.enqueue([JOB,{**JOB,'id':'456','title':'Retail Seller'}],2)
+        self.state.prepare_batch()
+        self.state.con.execute('UPDATE delivery_parts SET sent_at=1'); self.state.con.commit()
+        prefs['other_scope']='technical'; self.state.set_preferences(prefs)
+        self.bot.feed_page(1)
+        self.assertNotIn('Retail Seller',self.bot.send.call_args.args[0])
 
 
 if __name__=='__main__':

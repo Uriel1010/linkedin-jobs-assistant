@@ -1,4 +1,6 @@
 import json
+import html
+import feed_ui
 import hashlib
 import os
 import re
@@ -137,7 +139,7 @@ class State:
         if self.con.execute('SELECT 1 FROM delivery_parts WHERE sent_at IS NULL LIMIT 1').fetchone():
             return
         rows=[dict(row) for row in self.con.execute("SELECT * FROM deliveries WHERE status='pending' ORDER BY discovered_at,job_id"+
-            ('' if catchup else ' LIMIT 500'))]
+            '')]
         if not rows:
             return
         accepted=[]
@@ -152,6 +154,7 @@ class State:
                     self.con.execute("UPDATE deliveries SET status='filtered',reason=? WHERE job_id=?",(reason,row['job_id']))
         if not accepted:
             return
+        accepted.sort(key=lambda job:feed_ui.rank(job,prefs))
         groups=[]; group=[]; size=0
         for job in accepted:
             length=len(job_card(job).encode('utf-16-le'))//2+2
@@ -359,8 +362,11 @@ class Bot:
         except (urllib.error.URLError,TimeoutError,ValueError,OSError):
             raise ServiceError(503,'Profile photo update failed',service='telegram') from None
 
-    def send(self, text, buttons=None):
-        text = self.t(str(text))[:14000]
+    def send(self, text, buttons=None, rich=False):
+        text = self.t(str(text))
+        if rich and len(text.encode("utf-16-le"))//2>3500:
+            raise ValueError("Feed page exceeds Telegram message budget")
+        text=text[:14000]
         parts, chunk, size = [], [], 0
         for char in text:
             width = 2 if ord(char)>0xffff else 1
@@ -372,16 +378,19 @@ class Bot:
         for index,part in enumerate(parts):
             time.sleep(max(0,1.05-(time.monotonic()-self.last_send)))
             data = {'chat_id':self.owner,'text':part, 'link_preview_options':{'is_disabled':True}}
+            if rich:
+                data['parse_mode']='HTML'
             if buttons and index==len(parts)-1:
                 data['reply_markup'] = {'inline_keyboard':self.local_buttons(buttons)}
             result = self.telegram('sendMessage',data)
             self.last_send = time.monotonic()
         return result
 
-    def edit(self, message_id, text, buttons):
+    def edit(self, message_id, text, buttons, rich=False):
         try:
             return self.telegram('editMessageText',{
                 'chat_id':self.owner,'message_id':message_id,'text':text,
+                **({'parse_mode':'HTML'} if rich else {}),
                 'link_preview_options':{'is_disabled':True},
                 'reply_markup':{'inline_keyboard':self.local_buttons(buttons)}})
         except ServiceError as exc:
@@ -389,46 +398,86 @@ class Bot:
                 return
             raise
 
-    def feed_page(self, batch_id, part=1, message_id=None):
-        pages=[dict(row) for row in self.state.con.execute(
-            'SELECT * FROM delivery_parts WHERE batch_id=? ORDER BY part',(batch_id,))]
-        if not pages:
+    def feed_snapshot(self,batch_id,category_key='all'):
+        rows=list(self.state.con.execute('SELECT * FROM delivery_parts WHERE batch_id=? ORDER BY part',(batch_id,)))
+        if not rows:
             raise ValueError('This update is no longer available.')
-        page=next((row for row in pages if row['part']==part),None)
-        if page is None:
+        ids=list(dict.fromkeys(job_id for row in rows for job_id in json.loads(row['job_ids'])))
+        prefs=self.state.preferences(); jobs=[]
+        for job_id in ids:
+            row=self.state.con.execute('SELECT payload,discovered_at FROM deliveries WHERE job_id=?',(job_id,)).fetchone()
+            if row:
+                job=json.loads(row['payload'])
+                if match_job(job,prefs,now=datetime.fromtimestamp(row['discovered_at'],timezone.utc))[0]:
+                    jobs.append(job)
+        jobs.sort(key=lambda job:feed_ui.rank(job,prefs))
+        counts={}
+        for job in jobs:
+            key=feed_ui.category(job); counts[key]=counts.get(key,0)+1
+        if category_key!='all' and category_key not in counts:
+            raise ValueError('No matches in this category. Use /new to reopen the update.')
+        selected=[job for job in jobs if category_key=='all' or feed_ui.category(job)==category_key]
+        return rows,jobs,counts,feed_ui.paginate(selected,prefs,self.language) or [[]],len(selected)
+
+    def validate_feed_message(self,batch_id,message_id):
+        binding=self.state.con.execute('SELECT batch_id FROM feed_messages WHERE message_id=?',(message_id,)).fetchone()
+        if binding is None or binding['batch_id']!=batch_id:
+            raise ValueError('This update is no longer available. Use /new.')
+
+    def feed_page(self, batch_id, part=1, message_id=None, category_key='all'):
+        rows,jobs,counts,pages,total=self.feed_snapshot(batch_id,category_key)
+        if not 1<=part<=len(pages):
             raise ValueError('This page does not exist.')
-        text=page['text'].replace(' · Part ',' · Page ')
-        if self.language=='he':
-            header=text.split('\n\n',1)[0]
-            for english in ('Hourly update','Catch-up after quiet hours','Israel time','newly found jobs','newly found job','Page'):
-                header=header.replace(english,self.t(english))
-            jobs=[]
-            for job_id in json.loads(page['job_ids']):
-                row=self.state.con.execute('SELECT payload FROM deliveries WHERE job_id=?',(job_id,)).fetchone()
-                if row is not None:
-                    jobs.append(job_card(json.loads(row['payload']),'he'))
-            if len(jobs)==len(json.loads(page['job_ids'])):
-                text='\u200f'+header+'\n\n'+'\n\n'.join(jobs)
+        original=rows[0]['text'].split('\n',1)[0]
+        heading='Catch-up after quiet hours' if original.startswith('Catch-up') else 'Hourly update'
+        stamp=original.split(' · ',1)[-1].replace(' Israel time','')
+        noun='newly found job' if total==1 else 'newly found jobs'
+        text='💼 <b>'+self.t(heading)+'</b> · '+html.escape(stamp)+'\n'
+        text+=f'<b>{total} {self.t(noun)}</b> · {self.t("Page")} {part}/{len(pages)}'
+        if len(jobs)<rows[0]['total_jobs']:
+            text+='\n'+self.t('Matching your current preferences')
+        if category_key!='all':
+            text+='\n'+feed_ui.label(category_key,self.language)
+        text+='\n\n'+('\n\n'.join(pages[part-1]) or self.t('No jobs match your current preferences. Use /preferences to adjust.'))
+        text+='\n\n'+self.t('Tap a title to open LinkedIn.')
         buttons=[]
+        if len(counts)>1:
+            tabs=[('all',self.t('All'),len(jobs))]+[(key,feed_ui.label(key,self.language),count) for key,count in counts.items()]
+            tabs=[{'text':('✓ ' if key==category_key else '')+f'{label} {count}',
+                   'callback_data':f'feed:{batch_id}:1:{key}'} for key,label,count in tabs]
+            buttons.extend([tabs[index:index+3] for index in range(0,len(tabs),3)])
         if len(pages)>1:
-            navigation=[]
-            index=pages.index(page)
-            if index:
-                navigation.append({'text':'‹ Previous','callback_data':f'feed:{batch_id}:{pages[index-1]["part"]}'})
-            navigation.append({'text':f'{index+1}/{len(pages)}','callback_data':'noop'})
-            if index+1<len(pages):
-                navigation.append({'text':'Next ›','callback_data':f'feed:{batch_id}:{pages[index+1]["part"]}'})
-            buttons=[navigation]
+            nav=[]
+            def button(label,page):
+                return {'text':label,'callback_data':f'feed:{batch_id}:{page}:{category_key}'}
+            if part>2:
+                nav.append(button('«',1))
+            if part>1:
+                nav.append(button('‹ Previous',part-1))
+            nav.append({'text':f'{part}/{len(pages)} ▦','callback_data':f'jump:{batch_id}:{category_key}:{part}'})
+            if part<len(pages):
+                nav.append(button('Next ›',part+1))
+            if part<len(pages)-1:
+                nav.append(button('»',len(pages)))
+            buttons.append(nav)
         if message_id is not None:
-            binding=self.state.con.execute('SELECT batch_id FROM feed_messages WHERE message_id=?',(message_id,)).fetchone()
-            if binding is None or binding['batch_id']!=batch_id:
-                raise ValueError('This update is no longer available. Use /new.')
-            self.edit(message_id,text,buttons)
+            self.validate_feed_message(batch_id,message_id)
+            self.edit(message_id,text,buttons,rich=True)
         else:
-            result=self.send(text,buttons)
+            result=self.send(text,buttons,rich=True)
             with self.state.con:
                 self.state.con.execute('INSERT INTO feed_messages VALUES (?,?)',(result['message_id'],batch_id))
-        return pages
+        return [{'part':index+1} for index in range(len(pages))]
+
+    def feed_jump(self,batch_id,category_key,current,message_id):
+        self.validate_feed_message(batch_id,message_id)
+        _,_,_,pages,_=self.feed_snapshot(batch_id,category_key)
+        size=len(pages)
+        choices=list(range(1,size+1)) if size<=50 else sorted({1,size,*range(max(1,current-3),min(size,current+3)+1),*[1+round(i*(size-1)/12) for i in range(13)]})
+        buttons=[{'text':('✓ ' if page==current else '')+str(page),'callback_data':f'feed:{batch_id}:{page}:{category_key}'} for page in choices]
+        keyboard=[buttons[index:index+5] for index in range(0,len(buttons),5)]
+        keyboard.append([{'text':self.t('Back to jobs'),'callback_data':f'feed:{batch_id}:{current}:{category_key}'}])
+        self.edit(message_id,self.t('Choose a page')+f' · {size}',keyboard)
 
     @staticmethod
     def number(value):
@@ -572,6 +621,9 @@ class Bot:
                'LinkedIn: '+self.t(connection),
                self.t('Roles: {roles} · Levels: {levels}',roles=self.labels(prefs['roles']),levels=self.labels(prefs['levels'])),
                self.t('Location rule: {rule}',rule=self.t('Israel explicitly listed' if prefs['region']=='israel' else 'Broader locations allowed'))]
+        next_digest=self.state.get('next_digest_at')
+        if next_digest:
+            lines.append(self.t('Next digest: {time}',time=self.time_label(datetime.fromtimestamp(next_digest,timezone.utc).isoformat(),True)))
         for row in active[:3]:
             lines+=['',f"{row['keywords']} · {row['location'] or self.t('Any location')}",
                     self.t('Last successful search: {time}',time=self.time_label(row.get('last_success'),True)),
@@ -624,6 +676,8 @@ class Bot:
                     prefs[key]=[part.strip() for part in value.split(',') if part.strip()][:20] if value not in ('clear','נקה') else []
                 elif key=='age' and value.isascii() and value.isdigit() and 1<=int(value)<=168:
                     prefs['max_age_hours']=int(value)
+                elif key=='other_scope' and value in ('technical','all'):
+                    prefs[key]=value
                 elif key=='unknown' and value in ('keep','hide'):
                     prefs['keep_unknown_level']=value=='keep'
                 else:
@@ -646,10 +700,13 @@ class Bot:
                 region=self.t('Israel must be explicitly listed' if prefs['region']=='israel' else 'Broader regions and remote locations allowed'),
                 age=prefs['max_age_hours'],unknown=self.t('kept' if prefs['keep_unknown_level'] else 'hidden'),
                 include=', '.join(prefs['include']) or self.t('Any'),exclude=', '.join(prefs['exclude']) or self.t('None'))
+        text+='\n'+self.t('Uncategorized roles: related engineering only' if prefs['other_scope']=='technical' else 'Uncategorized roles: all titles')
         self.send(text,[[{'text':'Software roles','callback_data':'pref:roles:software'},{'text':'All roles','callback_data':'pref:roles:all'}],
                         [{'text':'All seniorities','callback_data':'pref:levels:all'},{'text':'Junior','callback_data':'pref:levels:junior'}],
                         [{'text':'Senior','callback_data':'pref:levels:senior'},{'text':'Lead / Principal','callback_data':'pref:levels:lead,principal'}],
-                        [{'text':'Israel only','callback_data':'pref:region:israel'},{'text':'Broader locations','callback_data':'pref:region:broad'}]])
+                        [{'text':'Israel only','callback_data':'pref:region:israel'},{'text':'Broader locations','callback_data':'pref:region:broad'}],
+                        [{'text':'Related engineering only','callback_data':'pref:other_scope:technical'},
+                         {'text':'All uncategorized titles','callback_data':'pref:other_scope:all'}]])
 
     def track_searches(self,args):
         lines=[line.strip() for line in re.split(r';|\r?\n',args) if line.strip()]
@@ -815,8 +872,10 @@ class Bot:
                     if query is None:
                         raise ValueError('This browsing session expired. Use /jobs again.')
                     self.browse(query,int(self.number(data[2])),int(data[1]),message['message_id'])
-                elif data[0]=='feed' and len(data)==3:
-                    self.feed_page(int(self.number(data[1])),int(self.number(data[2])),message['message_id'])
+                elif data[0]=='feed' and len(data) in (3,4):
+                    self.feed_page(int(self.number(data[1])),int(self.number(data[2])),message['message_id'],data[3] if len(data)==4 else 'all')
+                elif data[0]=='jump' and len(data)==4:
+                    self.feed_jump(int(self.number(data[1])),data[2],int(self.number(data[3])),message['message_id'])
                 elif data[0] in ('job','save','refresh') and len(data)==2:
                     self.command('/'+data[0]+' '+data[1])
             elif message.get('text'):
@@ -861,21 +920,30 @@ class Bot:
                 break
         if quiet or self.quiet_active():
             return
-        self.state.prepare_batch(catchup=catchup)
-        batches=list(self.state.con.execute('SELECT DISTINCT batch_id FROM delivery_parts WHERE sent_at IS NULL ORDER BY batch_id LIMIT 10'))
-        for batch in batches:
-            batch_id=batch['batch_id']
-            binding=self.state.con.execute('SELECT message_id FROM feed_messages WHERE batch_id=? LIMIT 1',(batch_id,)).fetchone()
-            if binding is None:
-                self.feed_page(batch_id)
-            # All pages are now accessible through one durable message.
-            with self.state.con:
-                self.state.con.execute("UPDATE deliveries SET status='sent',sent_at=? WHERE batch_id=? AND status='pending'",(time.time(),batch_id))
-                self.state.con.execute('UPDATE delivery_parts SET sent_at=COALESCE(sent_at,?) WHERE batch_id=?',(time.time(),batch_id))
-            self.state.set('last_delivery_at',datetime.now(timezone.utc).isoformat())
+        now=time.time()
+        next_digest=self.state.get('next_digest_at')
+        if next_digest is None and self.state.get('last_delivery_at'):
+            next_digest=(datetime.fromisoformat(self.state.get('last_delivery_at')).timestamp()//3600+1)*3600
+        retry=bool(self.state.con.execute('SELECT 1 FROM delivery_parts WHERE sent_at IS NULL LIMIT 1').fetchone())
+        if catchup or retry or next_digest is None or now>=next_digest:
+            self.state.prepare_batch(catchup=catchup)
+            batches=list(self.state.con.execute('SELECT DISTINCT batch_id FROM delivery_parts WHERE sent_at IS NULL ORDER BY batch_id LIMIT 10'))
+            for batch in batches:
+                batch_id=batch['batch_id']
+                binding=self.state.con.execute('SELECT message_id FROM feed_messages WHERE batch_id=? LIMIT 1',(batch_id,)).fetchone()
+                if binding is None:
+                    self.feed_page(batch_id)
+                # All pages are now accessible through one durable message.
+                with self.state.con:
+                    self.state.con.execute("UPDATE deliveries SET status='sent',sent_at=? WHERE batch_id=? AND status='pending'",(time.time(),batch_id))
+                    self.state.con.execute('UPDATE delivery_parts SET sent_at=COALESCE(sent_at,?) WHERE batch_id=?',(time.time(),batch_id))
+                self.state.set('last_delivery_at',datetime.now(timezone.utc).isoformat())
+            self.state.set('next_digest_at',(now//3600+1)*3600)
         if catchup:
             self.state.set('quiet_started_at',None)
         for alert in self.api('GET','/alerts?limit=30'):
+            if str(alert.get('alert_key','')).startswith('details:'):
+                continue
             key = 'alert:'+str(alert['id'])
             if not self.state.notice_sent(key) and not alert.get('acknowledged_at'):
                 self.send(self.t('Feed notice')+'\n'+self.alert_label(alert))
