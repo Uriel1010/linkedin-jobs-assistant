@@ -945,7 +945,7 @@ class Bot:
         next_digest=self.state.get('next_digest_at')
         if next_digest is None and self.state.get('last_delivery_at'):
             last=datetime.fromisoformat(self.state.get('last_delivery_at')).timestamp()
-            next_digest=(last//3600+1)*3600 if interval==3600 else last+interval
+            next_digest=last+interval
         retry=bool(self.state.con.execute('SELECT 1 FROM delivery_parts WHERE sent_at IS NULL LIMIT 1').fetchone())
         if catchup or retry or next_digest is None or now>=next_digest:
             self.state.prepare_batch(catchup=catchup)
@@ -960,7 +960,7 @@ class Bot:
                     self.state.con.execute("UPDATE deliveries SET status='sent',sent_at=? WHERE batch_id=? AND status='pending'",(time.time(),batch_id))
                     self.state.con.execute('UPDATE delivery_parts SET sent_at=COALESCE(sent_at,?) WHERE batch_id=?',(time.time(),batch_id))
                 self.state.set('last_delivery_at',datetime.now(timezone.utc).isoformat())
-            self.state.set('next_digest_at',(now//3600+1)*3600 if interval==3600 else now+interval)
+            self.state.set('next_digest_at',now+interval)
         if catchup:
             self.state.set('quiet_started_at',None)
         for alert in self.api('GET','/alerts?limit=30'):

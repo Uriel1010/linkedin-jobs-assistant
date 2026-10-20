@@ -692,6 +692,13 @@ class BotTests(unittest.TestCase):
         self.assertEqual(self.state.get('next_digest_at'),15400)
         self.assertTrue(self.bot.send.called)
 
+    def test_hourly_interval_keeps_full_hour_after_non_aligned_run(self):
+        self.feed_api([])
+        self.state.set('notification_interval_minutes',60)
+        with patch('telegram_bot.time.time',return_value=1000):
+            self.bot.notifications()
+        self.assertEqual(self.state.get('next_digest_at'),4600)
+
     def test_legacy_snapshot_hides_irrelevant_titles(self):
         prefs=self.state.preferences(); prefs.update(roles=['software','other'],other_scope='all')
         self.state.set_preferences(prefs)
