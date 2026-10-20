@@ -4,7 +4,7 @@ import re
 COMMAND_ALIASES={'התחלה':'start','עזרה':'help','מצב':'status','משרות':'jobs','חדש':'new',
     'העדפות':'preferences','שקט':'quiet','שפה':'language','עקוב':'track','חיפושים':'searches',
     'ערוך_חיפוש':'setsearch','אסוף':'collect','השהה':'pause','המשך':'resume','התראות':'alerts',
-    'הודעות':'notify','משרה':'job','תיאור':'description','רענן':'refresh','שמור':'save',
+    'הודעות':'notify','תדירות':'interval','משרה':'job','תיאור':'description','רענן':'refresh','שמור':'save',
     'מועמדויות':'applications','שלב':'stage','תזכורות':'followups'}
 KEY_ALIASES={'תפקידים':'roles','רמות':'levels','אזור':'region','גיל':'age',
     'לא_ידוע':'unknown','כלול':'include','החרג':'exclude'}
@@ -229,3 +229,12 @@ HE.update({'Next digest: {time}':'העדכון הבא: {time}',
 KEY_ALIASES['אחרים']='other_scope'
 VALUE_ALIASES['טכני']='technical'
 HE['Notifications on. New jobs are grouped into hourly digests. Important alerts and due follow-ups are checked once a minute; quiet hours apply.']='ההתראות פעילות. משרות חדשות מרוכזות בעדכון שעתי. התראות חשובות ותזכורות נבדקות מדי דקה, בכפוף לשעות השקט.'
+
+HE.update({
+ 'Scheduled job update':'עדכון משרות מתוזמן',
+ 'Job notifications every {minutes} minutes':'עדכון משרות כל {minutes} דקות',
+ 'Choose minutes between job notifications':'בחירת מרווח בדקות בין עדכוני משרות',
+ 'Use /interval MINUTES, from 15 to 1440.':'השתמשו ב־/interval עם מספר דקות בין 15 ל־1440.',
+ 'Only Telegram job digests change. Collection schedules, important alerts and follow-up reminders stay unchanged. Quiet hours and catch-up still apply.':'השינוי חל רק על עדכוני המשרות ב־Telegram. תזמון האיסוף, התראות חשובות ותזכורות נשארים ללא שינוי. שעות שקטות והשלמת הפער ממשיכות לפעול.'
+})
+HELP_HE += '\n/interval 120 — מרווח בין עדכוני משרות בדקות (15–1440), ללא שינוי באיסוף'

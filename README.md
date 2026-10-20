@@ -60,6 +60,8 @@ Dashboard dismiss/read state is persistent in its own database. Dismissing a job
 
 ### Settings
 
+**Telegram job notification interval:** set 15–1440 minutes in Settings, or send `/interval 120` to the bot for two-hour digests. `/interval` shows the current value; `/interval 60` restores the hourly default. Hebrew alias: `/תדירות 120`. Changing the interval schedules the next digest from the time of the change and preserves queued jobs. It does not change search collection schedules. Quiet-hour catch-up can deliver sooner; important alerts and follow-up reminders keep their minute-by-minute checks.
+
 Open **Settings** in the sidebar or mobile navigation. Choose disciplines, experience levels, location scope, posting-age limit, and include/exclude keywords (English or Hebrew). Control notification delivery and configure quiet hours with a timezone. Click **Save changes** to apply them to the bot on its next check.
 
 Collection continues during quiet hours; the existing catch-up flow scans again and covers the quiet period. Dashboard inbox filters remain independent of Telegram feed filters. Previously filtered jobs are reconsidered; already-sent jobs are not replayed.

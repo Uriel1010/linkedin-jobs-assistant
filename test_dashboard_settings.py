@@ -87,6 +87,18 @@ class SettingsTests(unittest.TestCase):
         body['notify'] = True
         self.assertEqual(self.save(body).status_code, 409)
 
+    def test_interval_reschedules_only_when_changed(self):
+        body=self.get()
+        self.assertEqual(body['notification_interval_minutes'],60)
+        body['notification_interval_minutes']=120
+        with patch('dashboard_settings.time.time',return_value=1000):
+            self.assertEqual(self.save(body).status_code,200)
+        self.assertEqual(self.bot.get('next_digest_at'),8200)
+        self.assertEqual(self.save(self.get()).status_code,200)
+        self.assertEqual(self.bot.get('next_digest_at'),8200)
+        body=self.get(); body['notification_interval_minutes']=14
+        self.assertEqual(self.save(body).status_code,422)
+
 
 if __name__ == '__main__':
     unittest.main()

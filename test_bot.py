@@ -669,6 +669,29 @@ class BotTests(unittest.TestCase):
         self.bot.configure_preferences('other_scope technical')
         self.assertEqual(self.state.preferences()['other_scope'],'technical')
 
+    def test_notification_interval_validation_and_reschedule(self):
+        with patch('telegram_bot.time.time',return_value=1000):
+            self.bot.configure_interval('120')
+        self.assertEqual(self.state.get('notification_interval_minutes'),120)
+        self.assertEqual(self.state.get('next_digest_at'),8200)
+        self.bot.api.assert_not_called()
+        for value in ('0','14','1441','abc'):
+            with self.assertRaises(ValueError):
+                self.bot.configure_interval(value)
+        self.assertEqual(self.state.get('next_digest_at'),8200)
+
+    def test_custom_digest_interval_is_respected(self):
+        self.feed_api([JOB])
+        self.state.set('notification_interval_minutes',120)
+        self.state.set('next_digest_at',8200)
+        with patch('telegram_bot.time.time',return_value=8199):
+            self.bot.notifications()
+        self.bot.send.assert_not_called()
+        with patch('telegram_bot.time.time',return_value=8200):
+            self.bot.notifications()
+        self.assertEqual(self.state.get('next_digest_at'),15400)
+        self.assertTrue(self.bot.send.called)
+
     def test_legacy_snapshot_hides_irrelevant_titles(self):
         prefs=self.state.preferences(); prefs.update(roles=['software','other'],other_scope='all')
         self.state.set_preferences(prefs)

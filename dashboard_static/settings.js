@@ -21,6 +21,7 @@ function renderSettings(data){
     </section>
     <section class="settings-card"><div class="settings-section-title"><span class="settings-number">03</span><div><h2>On your schedule</h2><p>Collection continues while notifications are paused or quiet.</p></div></div>
       <label class="settings-check"><input id="pref-notify" type="checkbox" ${data.notify?'checked':''}>Send Telegram notifications</label>
+      <div class="settings-fields"><label>New-job notification interval (minutes)<input id="pref-interval" type="number" min="15" max="1440" required value="${data.notification_interval_minutes}"><small>15–1440 minutes. Only changes Telegram job digests; searches keep their existing schedule. Important alerts and follow-up reminders are still checked every minute.</small></label></div>
       <label class="settings-check"><input id="quiet-enabled" type="checkbox" ${q.enabled?'checked':''}>Use quiet hours</label>
       <div class="settings-fields quiet-fields"><label>Quiet hours begin<input id="quiet-start" type="time" required value="${settingTime(q.start)}"></label><label>Resume notifications<input id="quiet-end" type="time" required value="${settingTime(q.end)}"></label>
       <label>Timezone<input id="quiet-zone" required maxlength="100" value="${esc(q.timezone)}" list="timezones"><datalist id="timezones"><option value="Asia/Jerusalem"><option value="Europe/London"><option value="Europe/Berlin"><option value="America/New_York"><option value="UTC"></datalist><small>Uses local time in this zone, including daylight saving.</small></label></div>
@@ -59,7 +60,7 @@ $('settings-form').onsubmit=async e=>{
   // Keep the submitted form stable while its save is in flight.
   const controls=Array.from($('settings-content').querySelectorAll('input,select,textarea'));
   controls.forEach(el=>el.disabled=true);$('settings-reload').disabled=true;
-  try{settingsSnapshot=await api('/settings','PUT',{revision:settingsSnapshot.revision,preferences:p,quiet_hours:q,notify:$('pref-notify').checked});settingsDirty=false;renderSettings(settingsSnapshot);$('settings-status').textContent='Saved · shared with Telegram';toast('Settings saved. The bot will use them on its next check.')}
+  try{settingsSnapshot=await api('/settings','PUT',{revision:settingsSnapshot.revision,preferences:p,quiet_hours:q,notify:$('pref-notify').checked,notification_interval_minutes:Number($('pref-interval').value)});settingsDirty=false;renderSettings(settingsSnapshot);$('settings-status').textContent='Saved · shared with Telegram';toast('Settings saved. The bot will use them on its next check.')}
   catch(err){$('settings-error').textContent=err.message;$('settings-status').textContent='Not saved · your edits are still here'}
   finally{controls.forEach(el=>el.disabled=false);updateQuietInputs();button.disabled=!settingsDirty;$('settings-reload').disabled=false}
 };

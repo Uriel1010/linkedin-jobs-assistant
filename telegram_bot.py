@@ -168,7 +168,7 @@ class State:
         with self.con:
             for index,group in enumerate(groups,1):
                 noun='job' if len(accepted)==1 else 'jobs'
-                heading='Catch-up after quiet hours' if catchup else 'Hourly update'
+                heading='Catch-up after quiet hours' if catchup else ('Hourly update' if self.get('notification_interval_minutes',60)==60 else 'Scheduled job update')
                 text=f"{heading} · {stamp} Israel time\n{len(accepted)} newly found {noun} · Page {index}/{len(groups)}\n\n"+'\n\n'.join(job_card(job) for job in group)
                 ids=[job['id'] for job in group]
                 self.con.execute('INSERT INTO delivery_parts VALUES (?,?,?,?,?,?,NULL)',
@@ -232,6 +232,7 @@ HELP = '''Your private jobs database bot.
 /followups — due follow-ups
 /alerts — collection problems
 /notify on or /notify off — new-job, alert and follow-up notifications
+/interval 120 — minutes between Telegram job digests (15–1440); collection is unchanged
 
 Stages: saved, reviewing, applied, interviewing, offer, rejected, withdrawn, archived.
 Tracking updates do not submit applications or contact employers.
@@ -284,6 +285,7 @@ class Bot:
             ('track','Add search: title | location'),('setsearch','Edit search: ID title | location'),
             ('collect','Run a search now'),('pause','Pause collection for a search'),
             ('resume','Resume collection for a search'),('notify','Turn notifications on or off'),
+            ('interval','Choose minutes between job notifications'),
             ('job','Job details: JOB_ID'),('description','Stored description: JOB_ID'),
             ('refresh','Fetch description: JOB_ID'),('save','Track an application: JOB_ID'),
             ('applications','Your application tracker'),('stage','Update application: APP_ID stage'),
@@ -431,7 +433,7 @@ class Bot:
         # Older keyboards may refer to pages removed by tighter preferences.
         part=min(part,len(pages))
         original=rows[0]['text'].split('\n',1)[0]
-        heading='Catch-up after quiet hours' if original.startswith('Catch-up') else 'Hourly update'
+        heading='Catch-up after quiet hours' if original.startswith('Catch-up') else ('Hourly update' if self.state.get('notification_interval_minutes',60)==60 else 'Scheduled job update')
         stamp=original.split(' · ',1)[-1].replace(' Israel time','')
         noun='newly found job' if total==1 else 'newly found jobs'
         text='💼 <b>'+self.t(heading)+'</b> · '+html.escape(stamp)+'\n'
@@ -623,6 +625,7 @@ class Bot:
                'LinkedIn: '+self.t(connection),
                self.t('Roles: {roles} · Levels: {levels}',roles=self.labels(prefs['roles']),levels=self.labels(prefs['levels'])),
                self.t('Location rule: {rule}',rule=self.t('Israel explicitly listed' if prefs['region']=='israel' else 'Broader locations allowed'))]
+        lines.append(self.t('Job notifications every {minutes} minutes',minutes=self.state.get('notification_interval_minutes',60)))
         next_digest=self.state.get('next_digest_at')
         if next_digest:
             lines.append(self.t('Next digest: {time}',time=self.time_label(datetime.fromtimestamp(next_digest,timezone.utc).isoformat(),True)))
@@ -819,6 +822,8 @@ class Bot:
         elif command=='/alerts':
             rows = self.api('GET','/alerts?limit=8')
             self.send('\n\n'.join(self.alert_label(r)+'\n'+self.t('Last seen: {time}',time=self.time_label(r['updated_at'],True)) for r in rows) or 'No open issues.')
+        elif command=='/interval':
+            self.configure_interval(args)
         elif command=='/notify':
             args={'הפעלה':'on','פעיל':'on','כיבוי':'off','כבוי':'off'}.get(args,args)
             if args not in ('on','off'):
@@ -840,7 +845,7 @@ class Bot:
                         break
                 self.state.seed_baseline(jobs,cursor)
             self.state.set('notify',args=='on')
-            self.send('Notifications on. New jobs are grouped into hourly digests. Important alerts and due follow-ups are checked once a minute; quiet hours apply.' if args=='on' else 'Notifications paused. Collection continues, and queued new jobs will remain saved until you resume.')
+            self.send(self.t('Job notifications every {minutes} minutes',minutes=self.state.get('notification_interval_minutes',60)) if args=='on' else 'Notifications paused. Collection continues, and queued new jobs will remain saved until you resume.')
         elif command.startswith('/'):
             self.send('Unknown command. Use /help.')
         elif text.strip():
@@ -896,6 +901,19 @@ class Bot:
     def job_digest(jobs, heading='New job matches'):
         return f'{heading}: {len(jobs)}\n\n'+'\n\n'.join(job_card(job) for job in jobs)
 
+    def configure_interval(self, args=''):
+        value=args.strip()
+        if value:
+            if not value.isascii() or not value.isdigit() or not 15<=int(value)<=1440:
+                raise ValueError(self.t('Use /interval MINUTES, from 15 to 1440.'))
+            minutes=int(value)
+            with self.state.con:
+                for key,item in {'notification_interval_minutes':minutes,'next_digest_at':time.time()+minutes*60}.items():
+                    self.state.con.execute('INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+                                           (key,json.dumps(item)))
+        self.send(self.t('Job notifications every {minutes} minutes',minutes=self.state.get('notification_interval_minutes',60))+
+                  '\n'+self.t('Only Telegram job digests change. Collection schedules, important alerts and follow-up reminders stay unchanged. Quiet hours and catch-up still apply.'))
+
     def notifications(self):
         if not self.state.get('notify',False) or not self.state.get('chat_ready',False):
             return
@@ -923,9 +941,11 @@ class Bot:
         if quiet or self.quiet_active():
             return
         now=time.time()
+        interval=self.state.get('notification_interval_minutes',60)*60
         next_digest=self.state.get('next_digest_at')
         if next_digest is None and self.state.get('last_delivery_at'):
-            next_digest=(datetime.fromisoformat(self.state.get('last_delivery_at')).timestamp()//3600+1)*3600
+            last=datetime.fromisoformat(self.state.get('last_delivery_at')).timestamp()
+            next_digest=(last//3600+1)*3600 if interval==3600 else last+interval
         retry=bool(self.state.con.execute('SELECT 1 FROM delivery_parts WHERE sent_at IS NULL LIMIT 1').fetchone())
         if catchup or retry or next_digest is None or now>=next_digest:
             self.state.prepare_batch(catchup=catchup)
@@ -940,7 +960,7 @@ class Bot:
                     self.state.con.execute("UPDATE deliveries SET status='sent',sent_at=? WHERE batch_id=? AND status='pending'",(time.time(),batch_id))
                     self.state.con.execute('UPDATE delivery_parts SET sent_at=COALESCE(sent_at,?) WHERE batch_id=?',(time.time(),batch_id))
                 self.state.set('last_delivery_at',datetime.now(timezone.utc).isoformat())
-            self.state.set('next_digest_at',(now//3600+1)*3600)
+            self.state.set('next_digest_at',(now//3600+1)*3600 if interval==3600 else now+interval)
         if catchup:
             self.state.set('quiet_started_at',None)
         for alert in self.api('GET','/alerts?limit=30'):

@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -12,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from feed_rules import DEFAULT_PREFERENCES, ROLES, LEVELS
 
 router = APIRouter()
-KEYS = ('preferences', 'quiet_hours', 'notify')
+KEYS = ('preferences', 'quiet_hours', 'notify', 'notification_interval_minutes')
 
 
 class Preferences(BaseModel):
@@ -77,6 +78,7 @@ class Settings(BaseModel):
     preferences: Preferences
     quiet_hours: QuietHours
     notify: bool
+    notification_interval_minutes: int = Field(default=60, ge=15, le=1440)
 
 
 @contextmanager
@@ -103,13 +105,14 @@ def connection():
 
 def snapshot(con):
     values = {k: json.loads(v) for k, v in con.execute(
-        "SELECT key,value FROM settings WHERE key IN ('preferences','quiet_hours','notify')")}
+        "SELECT key,value FROM settings WHERE key IN ('preferences','quiet_hours','notify','notification_interval_minutes')")}
     revision = hashlib.sha256(json.dumps(values, sort_keys=True).encode()).hexdigest()
     return {
         'preferences': {**DEFAULT_PREFERENCES, **values.get('preferences', {})},
         'quiet_hours': {'enabled': False, 'start': 1380, 'end': 480,
                         'timezone': 'Asia/Jerusalem', **values.get('quiet_hours', {})},
         'notify': values.get('notify', False), 'revision': revision,
+        'notification_interval_minutes': values.get('notification_interval_minutes', 60),
     }
 
 
@@ -139,4 +142,7 @@ def save_settings(body: Settings):
             con.execute("UPDATE deliveries SET status='pending',reason=NULL WHERE status='filtered'")
         con.executemany('INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
                         [(k, json.dumps(values[k])) for k in KEYS])
+        if values['notification_interval_minutes'] != current['notification_interval_minutes']:
+            con.execute('INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+                        ('next_digest_at', json.dumps(time.time()+values['notification_interval_minutes']*60)))
         return snapshot(con)
