@@ -645,6 +645,14 @@ class BotTests(unittest.TestCase):
         keyboard=self.bot.telegram.call_args.args[1]['reply_markup']['inline_keyboard']
         self.assertTrue(any(b['callback_data']=='feed:1:45:all' for row in keyboard for b in row))
 
+    def test_old_keyboard_clamps_pages_after_filtering(self):
+        self.feed_api([{**JOB,'id':str(i)} for i in range(7)])
+        self.bot.notifications()
+        self.bot.send.reset_mock()
+        self.bot.feed_page(1,45,100)
+        self.assertIn('Page 2/2',self.bot.telegram.call_args.args[1]['text'])
+        self.bot.send.assert_not_called()
+
     def test_description_alerts_stay_in_alerts_command(self):
         def api(method,path,payload=None):
             if path.startswith('/jobs?'): return {'items':[],'next_after_id':0}

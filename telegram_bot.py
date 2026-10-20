@@ -426,8 +426,10 @@ class Bot:
 
     def feed_page(self, batch_id, part=1, message_id=None, category_key='all'):
         rows,jobs,counts,pages,total=self.feed_snapshot(batch_id,category_key)
-        if not 1<=part<=len(pages):
+        if part<1:
             raise ValueError('This page does not exist.')
+        # Older keyboards may refer to pages removed by tighter preferences.
+        part=min(part,len(pages))
         original=rows[0]['text'].split('\n',1)[0]
         heading='Catch-up after quiet hours' if original.startswith('Catch-up') else 'Hourly update'
         stamp=original.split(' · ',1)[-1].replace(' Israel time','')
@@ -838,7 +840,7 @@ class Bot:
                         break
                 self.state.seed_baseline(jobs,cursor)
             self.state.set('notify',args=='on')
-            self.send('Notifications on. New jobs, important alerts, and due follow-ups are checked once a minute; existing jobs are not resent.' if args=='on' else 'Notifications paused. Collection continues, and queued new jobs will remain saved until you resume.')
+            self.send('Notifications on. New jobs are grouped into hourly digests. Important alerts and due follow-ups are checked once a minute; quiet hours apply.' if args=='on' else 'Notifications paused. Collection continues, and queued new jobs will remain saved until you resume.')
         elif command.startswith('/'):
             self.send('Unknown command. Use /help.')
         elif text.strip():

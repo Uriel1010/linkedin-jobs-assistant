@@ -228,3 +228,4 @@ HE.update({'Next digest: {time}':'העדכון הבא: {time}',
  'Related engineering only':'הנדסה קרובה בלבד','All uncategorized titles':'כל הכותרות הלא מסווגות'})
 KEY_ALIASES['אחרים']='other_scope'
 VALUE_ALIASES['טכני']='technical'
+HE['Notifications on. New jobs are grouped into hourly digests. Important alerts and due follow-ups are checked once a minute; quiet hours apply.']='ההתראות פעילות. משרות חדשות מרוכזות בעדכון שעתי. התראות חשובות ותזכורות נבדקות מדי דקה, בכפוף לשעות השקט.'
