@@ -243,8 +243,8 @@ async def authorize(key: Annotated[str | None, Depends(APIKeyHeader(name='X-API-
         raise HTTPException(401, 'Invalid API key')
 
 
-app = FastAPI(title='LinkedIn Jobs API', version='2.1.0', lifespan=lifespan,
-              description='Personal LinkedIn session collector. Configure searches after connecting. Browser collection is experimental; live login is required.')
+app = FastAPI(title='Jobspace Jobs API', version='3.0.0', lifespan=lifespan,
+              description='Stored jobs, applications, and public employer-source controls. Collection runs in a separate worker. LinkedIn automation is disabled by default.')
 protected = [Depends(authorize)]
 
 
@@ -295,7 +295,8 @@ def status():
             'enabled_searches': count, 'collection_running': lock.locked(),
             'connecting': (storage.DATA / 'connecting.lock').exists(),
             'open_alerts':alerts, 'details_pending_or_failed':pending+failed,
-            'descriptions_pending':pending,'descriptions_failed':failed,'network':state}
+            'descriptions_pending':pending if LINKEDIN_ENABLED else 0,
+            'descriptions_failed':failed,'network':state}
 
 
 @app.post('/searches', dependencies=protected, status_code=201)
