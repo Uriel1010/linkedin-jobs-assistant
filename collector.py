@@ -5,7 +5,12 @@ import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from urllib.parse import urlencode, urlsplit
-from playwright.async_api import async_playwright, TimeoutError as BrowserTimeout
+try:
+    from playwright.async_api import async_playwright, TimeoutError as BrowserTimeout
+except ImportError:
+    # The production read API and public-feed worker do not include a browser.
+    async_playwright = None
+    BrowserTimeout = TimeoutError
 import storage
 
 

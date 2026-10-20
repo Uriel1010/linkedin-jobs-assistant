@@ -2,40 +2,53 @@
   <img src="docs/images/profile.jpg" width="130" alt="Job-search assistant: a blue briefcase and magnifying glass">
 </p>
 
-# LinkedIn Jobs API & Telegram Assistant
+# Jobspace · Employer Feeds & Telegram Assistant
 
 **English · [עברית](README.he.md)**
 
 [![Checks](https://github.com/Uriel1010/linkedin-jobs-assistant/actions/workflows/checks.yml/badge.svg)](https://github.com/Uriel1010/linkedin-jobs-assistant/actions/workflows/checks.yml)
 
-Your private, server-hosted job-search feed. Collect LinkedIn jobs hourly, keep them in a searchable database, and receive new matches in Telegram—one message with page buttons. A private, mobile-friendly web dashboard gives you a focused inbox, shortlist, and application board.
+Your private, server-hosted job-search workspace. Collect published jobs from documented Greenhouse, Lever (global/EU), and Ashby employer feeds, keep them in a database, and receive new matches in Telegram. A mobile-friendly dashboard provides an inbox, shortlist, application board, and source controls.
+
+**LinkedIn browser automation is disabled by default.** The API runs without a browser; a separate `feeds` container collects public employer boards. Stored LinkedIn jobs remain accessible, but neither scheduled nor manual collection uses your LinkedIn account. Email ingestion is not connected; its offline preview parser is ready for a future mailbox integration.
+
+![Public employer sources with fictional demonstration data](docs/images/dashboard-searches.png)
+
 
 [Web dashboard](#web-dashboard) · [Bot guide](#use-the-bot) · [Quiet hours](#quiet-hours-and-catch-up) · [Installation](#install-on-a-new-server) · [API](#connect-another-app) · [Troubleshooting](#troubleshooting)
 
-![From scheduled searches to the database, API and private Telegram feed](docs/images/how-it-works.png)
+```mermaid
+flowchart LR
+  Boards["Public employer APIs"] --> Feeds["feeds · independent worker"]
+  Feeds --> DB["Jobs database"]
+  DB --> API["Read API"]
+  API --> Dashboard["Web dashboard"]
+  API --> Bot["Telegram · separate delivery schedule"]
+  Mail["Email · not connected"]
+```
 
 ## Features
 
 | Feature | What you get |
 | --- | --- |
 | Private web dashboard | Responsive inbox, dismiss/restore, shortlist, application board, search controls and CSV export in a separate container. |
-| Hourly searches | Collection continues on your server when your laptop is off. |
+| Employer watchlist | Independent source schedules, request budgets, conditional caching, and manual block recovery. |
 | New-job alerts | Job-ID deduplication across searches and service restarts. |
 | One message per update | Compact linked titles, category tabs and page jumping; navigation edits the same message. |
 | Quiet hours | Your schedule and timezone, continued collection, and a paginated catch-up afterward. |
 | Feed preferences | Roles, seniority, location rules, title keywords and posting-age limits. |
 | Searchable database | Browse in Telegram or connect another app through the authenticated API. |
-| Stored descriptions | Background enrichment of descriptions and displayed metadata. |
+| Stored descriptions | Descriptions supplied by employer feeds, without per-job LinkedIn enrichment. |
 | Application tracker | Stages, notes, contacts, CV references and follow-up dates. |
-| Operations | Search history, coverage warnings, login alerts, health checks and database backups. |
+| Operations | Source history, partial-coverage errors, health checks and database backups. |
 | Hebrew and English | Localized replies, buttons, menus and profile descriptions; original job content and links are preserved. |
-| Bot profile and menu | Profile image, descriptions and all 23 supported commands registered at startup. |
+| Bot profile and menu | Profile image, descriptions and the available commands registered at startup. |
 
-This is a personal browser integration using your saved LinkedIn session, not an official LinkedIn jobs API. See [source limitations](#source-limitations).
+The running services use documented public employer APIs. LinkedIn session-based collection is disabled. See [source limitations](#source-limitations).
 
 ## Web dashboard
 
-**Jobspace** runs in its own Docker container, alongside the API and Telegram bot.
+**Jobspace** runs in its own Docker container, alongside the API, public-feed worker, and Telegram bot.
 
 ![Desktop dashboard with a focused job inbox and detail pane; fictional demonstration data](docs/images/dashboard-desktop.png)
 
@@ -115,7 +128,8 @@ DASHBOARD_SCREENSHOTS=docs/images python -m unittest test_dashboard_browser -v
 
 `DASHBOARD_BROWSER_PATH` can point to a locally installed Chromium browser. Do not set `DASHBOARD_DEMO=1` on the production service: demo mode intentionally uses fictional data and skips sign-in. It belongs only in a separate, temporary loopback preview.
 
-![Collection management and health screen with fictional searches](docs/images/dashboard-searches.png)
+![Employer feed management with fictional sources](docs/images/dashboard-searches.png)
+<img src="docs/images/dashboard-sources-mobile.png" width="320" alt="Mobile employer sources using fictional data">
 
 ## Use the bot
 
@@ -127,7 +141,7 @@ Open the Telegram bot you configured. It accepts only its configured owner in a 
 4. Choose your roles and seniority with `/preferences`.
 5. Choose `/quiet` if you want quiet hours. They stay **off until you select them**.
 
-New installations start without searches. Create your own hourly search using the [installation guide](#install-on-a-new-server).
+New installations start without employer boards. Add them in **Sources & health** using the installation guide. No LinkedIn login is required.
 
 ### Read an update
 
@@ -137,13 +151,13 @@ The image is an illustration with fictional jobs, not a live screenshot.
 
 
 
-- Click a **job title** to open it on LinkedIn. Each compact card shows company, city, role, seniority when known, and posting date when available.
+- Click a **job title** to open the original listing (employer board or historical LinkedIn link). Each compact card shows company, city, role, seniority when known, and posting date when available.
 - Click **Next** / **Previous**, **«** / **»** for first/last, or the **page counter** to choose a page. Category tabs narrow the same update to Embedded, Software, QA, or other matching groups.
 - `/new` reopens the latest delivered update with all its pages.
 - `/jobs Python` searches the full database, including jobs excluded from alerts.
 - Feed and catalog keyboards contain navigation only. Optional details and tracking are available through commands.
 
-Discoveries from all searches are combined into one digest at the next hourly boundary. The first notification check can deliver immediately; quiet-hours catch-up and failed-delivery retries can also run between boundaries. Empty hours are silent. `/status` shows the next digest time. Routine description-refresh failures stay in `/status` and `/alerts`; connection failures and due follow-ups still notify you.
+Discoveries from employer sources are combined into one digest at your chosen notification interval. `/interval 120` sets two-hour digests; `/interval 60` restores one hour. Source collection schedules are independent. Quiet-hours catch-up and failed-delivery retries can run before the next scheduled digest. Empty digests are silent. `/status` shows the next digest time.
 
 Older updates use your current preferences when reopened, and show a label when some original jobs are hidden. Category selection changes the count and page numbers for that view.
 
@@ -209,37 +223,34 @@ Separate multiple selections or keywords with commas. Defaults: software roles, 
 
 These are title/location rules, not a CV-based suitability score. Preferences filter notifications; collection searches determine what enters the database. Editing preferences rechecks previously filtered, unsent discoveries. Baseline and already-delivered jobs stay suppressed.
 
-### Manage searches
+### Manage employer sources
 
-```text
-/searches
-/track Backend Engineer | Israel
-/setsearch 2 Backend Engineer | Israel
-/collect 2
-/pause 2
-/resume 2
-```
+Open **Sources & health** in the dashboard. Add a provider, board name, company label, and optional location substring. A board name comes from its public careers URL:
 
-Use the actual search IDs from `/searches`; `2` is an example. `/track` adds an hourly search. A blank location after `|` means any location. `/setsearch` changes criteria and retains the hourly interval.
+| Provider | Example careers URL | Board |
+| --- | --- | --- |
+| Greenhouse | `https://job-boards.greenhouse.io/asteralabs` | `asteralabs` |
+| Lever EU | `https://jobs.eu.lever.co/mobileye` | `mobileye` |
+| Lever global | `https://jobs.lever.co/COMPANY` | `COMPANY` |
+| Ashby | `https://jobs.ashbyhq.com/wayve` | `wayve` |
 
-You can paste multiple `/track` lines as **one Telegram message**:
+Defaults are a 120-minute schedule, 48 requests per rolling 24 hours, and 10 requests per collection. Each HTTP page counts toward the budget. The worker also enforces shared per-provider pacing and daily limits. Conditional requests use ETag/Last-Modified when supplied.
 
-```text
-/track Embedded Software Engineer | Israel
-/track Firmware Engineer | Israel
-/track Embedded Linux Engineer | Israel
-/track Low Level Software Engineer | Israel
-/track Linux Kernel Engineer | Israel
-/track Device Driver Engineer | Israel
-/track System Software Engineer | Israel
-/track BSP Engineer | Israel
-```
+- **Collect now** queues work; it does not bypass budgets, cooldowns, or the 15-minute manual refresh floor.
+- **Schedule & limits** changes one source independently of Telegram delivery.
+- **Pause / Resume** controls collection while keeping stored jobs.
+- **Run history** distinguishes success, provider errors, interrupted work, and incomplete pagination.
+- Access denial, a missing board, or an unexpected redirect requires manual review and resume. Repeated rate limiting also blocks the source. Retry-After and backoff apply.
+- An unexpectedly empty previously populated board is paused for review, rather than automatically closing every vacancy.
+- The first successful snapshot establishes a baseline. It fills the dashboard without replaying every existing vacancy as a new alert.
 
-The bot sends one confirmation. Semicolons or one `/track` followed by newline-separated `title | location` entries also work. Up to 20 entries are accepted, with a maximum of 20 stored searches. All entries are validated before any are created. Repeating a title/location/work-arrangement combination reuses the existing search, ignoring case and extra whitespace; existing schedules and paused states are preserved. A batch that exceeds capacity creates nothing. Jobs matching several searches are still notified once per job ID.
+Jobs have provider provenance and stable internal IDs. Exact normalized job/apply URLs can join the same vacancy across sources. Similar company/title text alone never merges records. Jobs missing from a complete nonempty snapshot are marked inactive; saved applications and source records are preserved.
 
-Firmware, embedded, low-level, Linux kernel, device-driver and BSP titles are classified as embedded roles. Include `embedded` in `/preferences roles` to receive those alerts. System software titles remain in the software category.
+`/sources` shows employer-feed status in Telegram. Legacy `/track`, `/collect`, and LinkedIn description refresh cannot start network collection while LinkedIn is disabled.
 
-`/setsearch`, `/collect`, `/pause` and `/resume` can omit the ID when a primary search is configured or only one search exists. Manual collection respects the server's cooldown and login checks.
+### Email integration readiness
+
+No mailbox credentials are required for the running public feeds. `POST /imports/email/preview` accepts a JSON `content` field containing a raw email (maximum 500 KB) and extracts direct LinkedIn job IDs/links **offline**. It neither saves jobs nor follows redirects. Mailbox OAuth/IMAP access, trusted sender validation, and a user-approved mailbox/folder must be configured before an automatic email connector can be deployed. That connector is intentionally not enabled.
 
 ### Quiet hours and catch-up
 
@@ -262,7 +273,7 @@ When quiet hours end, the bot requests a fresh scan of enabled searches to check
 
 The queue and quiet-period marker survive restarts. Freshness is checked at discovery time so waiting overnight does not make an otherwise matching job expire.
 
-### Pause notifications or searches
+### Pause notifications or collection
 
 | Control | Collection | Automatic messages | How it resumes |
 | --- | --- | --- | --- |
@@ -273,6 +284,8 @@ The queue and quiet-period marker survive restarts. Freshness is checked at disc
 Quiet hours never override a manual `/notify off`.
 
 ### All commands
+
+Historical LinkedIn collection commands in this reference are retained for compatibility but disabled in the current deployment. Use `/sources` and the dashboard to manage public employer feeds.
 
 | Command | Purpose |
 | --- | --- |
@@ -346,22 +359,17 @@ docker compose up -d --build api
 docker compose ps
 ```
 
-Startup creates the schema and API key under `data/`. API port `8765` and temporary desktop port `6080` bind only to server loopback.
+Startup creates the schema and API key under `data/`. API port `8765` binds only to server loopback. No sign-in desktop or browser service is exposed.
 
-### 3. Connect LinkedIn
-
-From a terminal **on your computer**, replace `USER@SERVER` and run:
+### 3. Start the dashboard and public feeds
 
 ```sh
-ssh -t -L 6080:127.0.0.1:6080 -L 8765:127.0.0.1:8765 USER@SERVER 'cd ~/Project/linkedin-jobs-assistant && docker compose exec api python connect.py'
+mkdir -p dashboard-data
+chmod 700 dashboard-data
+docker compose up -d --build feeds dashboard
 ```
 
-1. Keep that terminal open and visit [the sign-in desktop](http://127.0.0.1:6080/vnc.html).
-2. Click **Connect** and enter the temporary desktop password printed in the terminal.
-3. Sign into LinkedIn in the remote browser and complete verification yourself.
-4. Return to the terminal and press **Enter** to save the session.
-
-The desktop then closes. Your password is entered directly into LinkedIn; only LinkedIn session cookies are retained in `data/session.json`. Type `cancel` or press Ctrl+C to preserve the previous session. Reuse this procedure when the login expires.
+Open the dashboard through SSH as described above. Add employer boards in **Sources & health**. No LinkedIn credentials or browser session is needed. The original browser collector is not used by this deployment.
 
 ### 4. Start the bot and baseline existing jobs
 
@@ -375,12 +383,12 @@ docker compose ps
 In your bot's private Telegram chat:
 
 1. Press **Start**.
-2. Run `/track Software Engineer | Israel`, or use your own criteria.
-3. Check `/searches` and `/status` until the first collection succeeds.
+2. Add employer sources through the dashboard.
+3. Check `/sources` until the first collection succeeds.
 4. Run `/notify on`. Its first use silently baselines jobs already stored; later discoveries are eligible for alerts.
 5. Choose `/preferences` and, optionally, `/quiet`.
 
-Normal operation needs no laptop, browser tab or SSH tunnel. Both services use `restart: unless-stopped`; enable the Docker service at boot on a new server.
+Normal operation needs no laptop, browser tab or SSH tunnel. All four services use `restart: unless-stopped`; enable the Docker service at boot on a new server.
 
 Startup registers the command menu and descriptions and uploads the bundled profile picture when its contents change. Quiet-hour choices are preserved. Run only one polling process per token; startup stops if an existing webhook is detected.
 
@@ -417,6 +425,19 @@ GET /jobs?after_id=0&limit=100
 Persist the response's `next_after_id` and send it as `after_id` next time. Event IDs may have gaps. A job can match several searches, so deduplicate records by job `id` while advancing the event cursor. An optional `search_id` supports a separate cursor per search.
 
 ### API reference
+
+Public-feed endpoints use the same `X-API-Key` authentication:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /sources` | Provider status, schedules, budgets, worker health |
+| `POST /sources` | Add a board (`provider`, `board`, `company`, `location_filter`) |
+| `PATCH /sources/{id}` | Update schedule, budgets, enabled state; requires current `revision` |
+| `POST /sources/{id}/poll` | Queue a collection, subject to budgets and cooldowns |
+| `POST /sources/{id}/resume` | Explicit recovery after reviewing a blocked source |
+| `GET /sources/{id}/runs` | Last 20 collection attempts |
+| `POST /imports/email/preview` | Offline raw-email preview; does not save jobs or connect a mailbox |
+
 
 | Method and path | Purpose |
 | --- | --- |
@@ -582,7 +603,7 @@ The tests do not use your LinkedIn account or Telegram token. The interactive-de
 | Bot does not reply | Press Start in the owner's private chat. Check owner ID and `docker compose ps bot`. Other users/groups are ignored. |
 | Quiet schedule looks wrong | `/quiet` shows the selected timezone; server OS timezone does not control it. Check `/notify` too. |
 | Catch-up is delayed | Check `/alerts`, API health, network cooldowns and coverage. The fresh scan respects source restrictions. |
-| Login required | Repeat [Connect LinkedIn](#3-connect-linkedin). A saved session file alone does not prove the login works. |
+| LinkedIn login/collection disabled | Expected: use public employer feeds. Historical jobs remain available. |
 | Coverage limited | Narrow criteria or adjust `max_pages` through the API. Review `/runs` and `/alerts`; already stored jobs remain safe. |
 | Description pending/unavailable | Enrichment runs between due searches. `/refresh JOB_ID` retries under the global cooldown. |
 | Collection returns 409 | Another run, login desktop, session problem or cooldown may block it. Read the response and `/alerts` before retrying. |
@@ -592,15 +613,25 @@ The tests do not use your LinkedIn account or Telegram token. The interactive-de
 
 ## Source limitations
 
-The collector uses Playwright Chromium and your saved LinkedIn session. It does not bypass verification or access restrictions. Source layout changes or login expiry can interrupt collection.
+Public employer APIs cover the boards you explicitly track, not all vacancies on the internet. Location filtering is a case-insensitive substring of provider locations; absent or ambiguous locations may be missed. Publication dates are used only when supplied; modification dates are not substituted. Greenhouse, Lever, and Ashby can still change schemas, limit requests, or become unavailable. Errors preserve the last successful snapshot.
 
-Runs have a four-minute time budget, up to 12 configured pages and up to 25 cards per page. New searches default to eight pages. Due searches take priority over description enrichment. Network batches are separated by at least 60 seconds globally.
+Source blocks never trigger proxy rotation, account switching, or automated verification attempts. LinkedIn automation remains disabled. Email alerts, once connected, will arrive according to the sender's delivery schedule; an hourly Telegram digest cannot make those alerts arrive sooner.
 
-Normal runs use time since the last useful collection plus roughly two hours of overlap, capped at seven days. Longer gaps create a coverage warning. Initial runs use their configured lookback. Pagination uncertainty and page limits can make coverage partial. This is not a complete archive of every LinkedIn job.
+Provider references: [Greenhouse Job Board API](https://docs.greenhouse.io/job-board.html), [Lever Postings API](https://github.com/lever/postings-api), [Ashby Job Postings API](https://developers.ashbyhq.com/docs/public-job-posting-api).
 
-Title, seniority and location rules are best-effort classifications. Unknown salaries, work arrangements, dates and application URLs remain unknown. Reposts with the same job ID do not trigger a new-job notification.
+### Independent service controls
 
-Transient failures use bounded retries and backoff. Login challenges suspend collection until reconnection; rate limits impose a cooldown. Stored jobs, application records and queued messages stay on the server.
+```sh
+docker compose stop feeds     # stop public collection; database/API/dashboard remain usable
+docker compose stop bot       # stop Telegram; collection and dashboard remain usable
+docker compose up -d feeds    # resume public feeds
+```
+
+The browser-free API performs database maintenance only. Collection runs in `source_worker.py`. The dashboard never needs LinkedIn credentials. Keep `LINKEDIN_COLLECTION_ENABLED=0`; the production API image intentionally does not contain Playwright.
+
+### Migrating an existing installation
+
+Back up `data/jobs.sqlite3` and `bot-data/state/bot.sqlite3` using SQLite's backup API before updating. Stop the old API and bot. Preserve volumes, dashboard access keys, and any private LAN/network configuration when adopting the new Compose services. Archive any old LinkedIn session outside mounted runtime directories, pause historical LinkedIn searches, and start `api`, `feeds`, and `dashboard`. Leave notification delivery paused until source baselines and preferences are reviewed. Database migrations are additive and preserve existing job/application IDs.
 
 ## Documentation images
 

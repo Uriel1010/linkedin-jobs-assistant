@@ -238,3 +238,7 @@ HE.update({
  'Only Telegram job digests change. Collection schedules, important alerts and follow-up reminders stay unchanged. Quiet hours and catch-up still apply.':'השינוי חל רק על עדכוני המשרות ב־Telegram. תזמון האיסוף, התראות חשובות ותזכורות נשארים ללא שינוי. שעות שקטות והשלמת הפער ממשיכות לפעול.'
 })
 HELP_HE += '\n/interval 120 — מרווח בין עדכוני משרות בדקות (15–1440), ללא שינוי באיסוף'
+
+HE.update({'Public employer sources and health':'מקורות מעסיקים ציבוריים ומצבם',
+ 'Automation disabled · public employer feeds only':'האוטומציה כבויה · מקורות מעסיקים ציבוריים בלבד'})
+HELP_HE += '\n/sources — מצב מקורות המעסיקים הציבוריים. איסוף אוטומטי מ־LinkedIn כבוי.'

@@ -43,12 +43,20 @@ apps=[{'id':i+1,'job_id':jobs[i+1]['id'],'status':stage,'title':jobs[i+1]['title
 searches=[{'id':i+1,'keywords':name,'location':'Israel','enabled':True,'interval_minutes':60,
     'last_success':(now-timedelta(minutes=18+i)).isoformat(),'next_due':(now+timedelta(minutes=42-i)).isoformat(),
     'status':'ok'} for i,name in enumerate(['Embedded Software Engineer','Firmware Engineer','Linux Kernel Engineer'])]
+sources=[{'id':i+1,'company':name,'provider':['greenhouse','lever_eu','ashby'][i],
+          'board':'fictional-'+str(i),'enabled':True,'blocked':False,'interval_minutes':120,
+          'daily_budget':48,'max_requests':10,'requests_today':4,'revision':1,'status':'ok','error':None,
+          'location_filter':'Israel','jobs_count':14,'added':2,'last_success':now.timestamp()-600,
+          'next_due':now.timestamp()+6600,'retry_after':0}
+         for i,name in enumerate(companies[:3])]
 
 
 def handle(method,path,payload=None):
     parts=urlsplit(path); route=parts.path
     query=parse_qs(parts.query); offset=int(query.get('offset',[0])[0]); limit=int(query.get('limit',[200])[0])
     if method=='GET':
+        if route=='/sources': return {'items':sources,'worker_alive':True,'linkedin_enabled':False,'email_connected':False}
+        if route.startswith('/sources/') and route.endswith('/runs'): return {'items':[]}
         if route in ('/catalog','/applications'):
             values=jobs if route=='/catalog' else apps
             return {'items':values[offset:offset+limit],'total':len(values)}
@@ -59,6 +67,14 @@ def handle(method,path,payload=None):
         if route=='/overview':
             return {'jobs':len(jobs),'applications_by_status':{s:sum(a['status']==s for a in apps) for s in ['saved','reviewing','applied','interviewing','offer']},
                     'follow_ups_due':0,'collector':{'open_alerts':0,'network':{},'descriptions_pending':0,'descriptions_failed':0}}
+    if route=='/sources':
+        item={**sources[0],**payload,'id':max(s['id'] for s in sources)+1,'revision':1}
+        sources.append(item); return item
+    if route.startswith('/sources/'):
+        item=next(s for s in sources if s['id']==int(route.split('/')[2]))
+        if method=='PATCH':
+            item.update(payload);item['revision']+=1
+        return item
     if route=='/applications':
         from fastapi import HTTPException
         if any(a['job_id']==payload['job_id'] for a in apps): raise HTTPException(409,'Already saved.')

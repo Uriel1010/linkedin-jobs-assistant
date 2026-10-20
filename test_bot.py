@@ -699,6 +699,18 @@ class BotTests(unittest.TestCase):
             self.bot.notifications()
         self.assertEqual(self.state.get('next_digest_at'),4600)
 
+    def test_closed_public_job_is_removed_from_pending_digest(self):
+        self.feed_api([{**JOB,'source':'greenhouse'}])
+        original=self.bot.api.side_effect
+        def api(method,path,payload=None):
+            if path.startswith('/sources/closed-jobs'):
+                return {'ids':[JOB['id']]}
+            return original(method,path,payload)
+        self.bot.api.side_effect=api
+        self.bot.notifications()
+        self.bot.send.assert_not_called()
+        self.assertEqual(self.state.pending_count(),0)
+
     def test_legacy_snapshot_hides_irrelevant_titles(self):
         prefs=self.state.preferences(); prefs.update(roles=['software','other'],other_scope='all')
         self.state.set_preferences(prefs)

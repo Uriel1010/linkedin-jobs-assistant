@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends tzdata && rm -rf /var/lib/apt/lists/*
-COPY telegram_bot.py maintenance.py feed_rules.py feed_ui.py i18n.py .
+COPY telegram_bot.py maintenance.py feed_rules.py feed_ui.py i18n.py source_providers.py .
 COPY job-search-profile.jpg .
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 USER 1000:1000

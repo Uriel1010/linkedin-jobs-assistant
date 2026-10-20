@@ -81,13 +81,13 @@ class State:
     @staticmethod
     def job_payload(job):
         return {field:job.get(field) for field in ('id','title','company','location','url','posted_text',
-            'posted_at','posting_observed_at','first_seen','seniority','employment_type','work_arrangement')}
+            'posted_at','posting_observed_at','first_seen','seniority','employment_type','work_arrangement','source','is_active')}
 
     def enqueue(self, items, cursor):
         with self.con:
             for job in items:
-                self.con.execute("INSERT OR IGNORE INTO deliveries(job_id,payload,status,discovered_at,sent_at) VALUES (?,?,'pending',?,NULL)",
-                                 (job['id'],json.dumps(self.job_payload(job)),time.time()))
+                self.con.execute("INSERT OR IGNORE INTO deliveries(job_id,payload,status,discovered_at,sent_at) VALUES (?,?,?,?,NULL)",
+                                 (job['id'],json.dumps(self.job_payload(job)),'baseline' if job.get('baseline') else 'pending',time.time()))
             self.con.execute('INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
                              ('cursor',json.dumps(cursor)))
 
@@ -214,6 +214,7 @@ HELP = '''Your private jobs database bot.
 
 /jobs [words] — browse stored jobs
 /new — reopen the latest job update
+/sources — public employer-feed status
 /preferences — filters; combine settings with semicolons or newlines
 /quiet — choose quiet hours, custom times or turn them off
 /language he|en|auto — Hebrew, English or Telegram language detection
@@ -282,12 +283,11 @@ class Bot:
             ('jobs','Browse all stored jobs'),('preferences','Choose roles, levels and location'),
             ('quiet','Choose quiet hours and timezone'),('language','Choose English, Hebrew or automatic'),
             ('status','Feed and search health'),('searches','Your collection searches'),
-            ('track','Add search: title | location'),('setsearch','Edit search: ID title | location'),
-            ('collect','Run a search now'),('pause','Pause collection for a search'),
-            ('resume','Resume collection for a search'),('notify','Turn notifications on or off'),
+            ('sources','Public employer sources and health'),
+            ('notify','Turn notifications on or off'),
             ('interval','Choose minutes between job notifications'),
             ('job','Job details: JOB_ID'),('description','Stored description: JOB_ID'),
-            ('refresh','Fetch description: JOB_ID'),('save','Track an application: JOB_ID'),
+            ('save','Track an application: JOB_ID'),
             ('applications','Your application tracker'),('stage','Update application: APP_ID stage'),
             ('followups','Due follow-ups'),('alerts','Collection alerts'),('help','All commands and examples')]
 
@@ -327,13 +327,13 @@ class Bot:
         self.telegram('setChatMenuButton',{'menu_button':{'type':'commands'}})
         self.telegram('setChatMenuButton',{'chat_id':self.owner,'menu_button':{'type':'commands'}})
         self.telegram('setMyDescription',{'description':
-            'Your private job-search assistant. Discover new LinkedIn jobs hourly, browse updates with page buttons, '
+            'Your private job-search assistant. Discover jobs from public employer feeds, browse updates with page buttons, '
             'choose role and location filters, and set your own quiet hours. Collection continues while notifications '
             'are quiet, with a catch-up update afterward. Browse your saved jobs and track applications from one chat.'})
         self.telegram('setMyShortDescription',{'short_description':
-            'Private hourly job alerts with links, filters, quiet hours and paginated catch-up updates.'})
+            'Private employer job alerts with links, filters, quiet hours and paginated catch-up updates.'})
         self.telegram('setMyDescription',{'language_code':'he','description':
-            'העוזר הפרטי שלך לחיפוש עבודה. משרות חדשות מ-LinkedIn מדי שעה, עם קישורים וכפתורי עמודים. '
+            'העוזר הפרטי שלך לחיפוש עבודה. משרות מלוחות מעסיקים ציבוריים, עם קישורים וכפתורי עמודים. '
             'בחרו תפקידים, רמות ותק, מיקומים ושעות שקטות. האיסוף ממשיך בשעות השקטות, ואחריהן נשלחת השלמה. '
             'אפשר לחפש במאגר ולעקוב אחרי מועמדויות מאותו צ׳אט.'})
         self.telegram('setMyShortDescription',{'language_code':'he','short_description':
@@ -609,7 +609,9 @@ class Bot:
         active=[row for row in searches if row['enabled']]
         state=data['collector']
         network=state.get('network',{})
-        if network.get('blocked_session'):
+        if state.get('linkedin_enabled') is False:
+            connection='Automation disabled · public employer feeds only'
+        elif network.get('blocked_session'):
             connection='Sign-in required · open /alerts'
         elif network.get('retry_after',0)>time.time():
             connection='Cooling down; the server will retry automatically'
@@ -786,6 +788,16 @@ class Bot:
             self.send(self.t('Tracker #{id}: {status}\n{title}',id=result['id'],status=self.t(result['status']),title=result['title']))
         elif command=='/status':
             self.show_status()
+        elif command=='/sources':
+            data=self.api('GET','/sources')
+            lines=[self.t('Public employer sources and health')]
+            for item in data['items']:
+                lines.append(f"\n{item['company']} · {item['provider']} · "+
+                             ('paused' if not item['enabled'] else item['status'])+
+                             f"\n{item['jobs_count']} jobs · {item['interval_minutes']} min"+
+                             (f"\n{item['error']}" if item.get('error') else ''))
+            lines.append('\nLinkedIn automation is disabled. Manage employer boards in dashboard Sources & health.')
+            self.send('\n'.join(lines))
         elif command=='/track':
             self.track_searches(args)
         elif command=='/searches':
@@ -948,6 +960,21 @@ class Bot:
             next_digest=last+interval
         retry=bool(self.state.con.execute('SELECT 1 FROM delivery_parts WHERE sent_at IS NULL LIMIT 1').fetchone())
         if catchup or retry or next_digest is None or now>=next_digest:
+            public_pending=self.state.con.execute("""SELECT 1 FROM deliveries WHERE status='pending'
+                AND json_extract(payload,'$.source') IN ('greenhouse','lever','lever_eu','ashby') LIMIT 1""").fetchone()
+            if public_pending:
+                offset=0
+                while True:
+                    closed=self.api('GET',f'/sources/closed-jobs?offset={offset}')['ids']
+                    with self.state.con:
+                        changed=0
+                        for job_id in closed:
+                            changed+=self.state.con.execute("UPDATE deliveries SET status='filtered',reason='No longer listed' WHERE job_id=? AND status='pending'",(job_id,)).rowcount
+                        if changed:
+                            self.state.con.execute('DELETE FROM delivery_parts WHERE sent_at IS NULL')
+                            self.state.con.execute("UPDATE deliveries SET batch_id=NULL WHERE status='pending'")
+                    if len(closed)<500: break
+                    offset+=len(closed)
             self.state.prepare_batch(catchup=catchup)
             batches=list(self.state.con.execute('SELECT DISTINCT batch_id FROM delivery_parts WHERE sent_at IS NULL ORDER BY batch_id LIMIT 10'))
             for batch in batches:

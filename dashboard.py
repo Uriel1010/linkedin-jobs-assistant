@@ -143,9 +143,10 @@ def upstream(method, path, payload=None):
         with urllib.request.urlopen(req, timeout=30) as response:
             return json.load(response)
     except urllib.error.HTTPError as exc:
-        detail = {404:'This item no longer exists.',409:'A collection is already running or this item already exists.',
+        detail = {404:'This item no longer exists.',409:'A collection is running, cooling down, or these settings changed. Refresh and try again.',
+                  423:'LinkedIn automation is disabled. Use public employer sources.',
                   429:'Collection is cooling down. Try again later.'}.get(exc.code,'The jobs service could not complete this request.')
-        raise HTTPException(exc.code if exc.code in (404,409,422,429) else 502, detail) from None
+        raise HTTPException(exc.code if exc.code in (404,409,422,423,429) else 502, detail) from None
     except (OSError,ValueError):
         raise HTTPException(503, 'The jobs service is unavailable. Your saved work is safe; try again shortly.') from None
 
@@ -182,10 +183,12 @@ def filtered(params):
         item['role'] = role_of(job.get('title') or '')
         item['level'] = level_of(job) or 'unknown'
         active_saved = item['application'] and item['application']['status'] not in ('archived','withdrawn','rejected')
-        counts['dismissed' if item['dismissed'] else 'inbox'] += 1
+        counts['dismissed' if item['dismissed'] else 'inbox'] += bool(item['dismissed'] or job.get('is_active',1))
         counts['saved'] += bool(active_saved)
-        counts['unread'] += not item['seen'] and not item['dismissed']
+        counts['unread'] += not item['seen'] and not item['dismissed'] and job.get('is_active',1)
         view = params.get('view','inbox')
+        if view=='inbox' and job.get('is_active')==0:
+            continue
         if view=='inbox' and item['dismissed'] or view=='dismissed' and not item['dismissed'] or view=='saved' and not active_saved:
             continue
         q = params.get('q','').casefold().strip()
@@ -311,6 +314,54 @@ def add_search(body: Search):
 
 class Enabled(BaseModel):
     enabled: bool
+
+
+@app.get('/api/sources')
+def public_sources():
+    return upstream('GET','/sources')
+
+
+class PublicSource(BaseModel):
+    provider: Literal['greenhouse','lever','lever_eu','ashby']
+    board: str = Field(min_length=1,max_length=100,pattern=r'^[A-Za-z0-9_-]+$')
+    company: str = Field(min_length=1,max_length=120)
+    location_filter: str = Field(default='Israel',max_length=100)
+    interval_minutes: int = Field(default=120,ge=60,le=10080)
+    daily_budget: int = Field(default=48,ge=1,le=200)
+    max_requests: int = Field(default=10,ge=1,le=20)
+
+
+@app.post('/api/sources')
+def add_public_source(body: PublicSource):
+    return upstream('POST','/sources',body.model_dump())
+
+
+class PublicSourceUpdate(BaseModel):
+    revision: int
+    enabled: bool | None = None
+    interval_minutes: int | None = Field(default=None,ge=60,le=10080)
+    daily_budget: int | None = Field(default=None,ge=1,le=200)
+    max_requests: int | None = Field(default=None,ge=1,le=20)
+
+
+@app.patch('/api/sources/{source_id}')
+def edit_public_source(source_id: int,body: PublicSourceUpdate):
+    return upstream('PATCH',f'/sources/{source_id}',body.model_dump(exclude_unset=True))
+
+
+@app.post('/api/sources/{source_id}/poll')
+def queue_public_source(source_id: int):
+    return upstream('POST',f'/sources/{source_id}/poll')
+
+
+@app.post('/api/sources/{source_id}/resume')
+def resume_public_source(source_id: int):
+    return upstream('POST',f'/sources/{source_id}/resume')
+
+
+@app.get('/api/sources/{source_id}/runs')
+def public_source_runs(source_id: int):
+    return upstream('GET',f'/sources/{source_id}/runs')
 
 
 @app.patch('/api/searches/{search_id}')

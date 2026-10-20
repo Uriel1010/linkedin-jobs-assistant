@@ -45,12 +45,14 @@ def init():
         ''')
         additions = {
             'searches': {'max_pages':'INTEGER NOT NULL DEFAULT 3', 'lookback_hours':'INTEGER NOT NULL DEFAULT 48',
-                         'failures':'INTEGER NOT NULL DEFAULT 0', 'next_due':'TEXT'},
+                         'failures':'INTEGER NOT NULL DEFAULT 0', 'next_due':'TEXT', 'kind':"TEXT NOT NULL DEFAULT 'linkedin'"},
             'jobs': {'description':'TEXT', 'salary_text':'TEXT', 'seniority':'TEXT', 'employment_type':'TEXT',
                      'posting_observed_at':'TEXT',
                      'work_arrangement':'TEXT', 'application_url':'TEXT', 'posted_at':'TEXT',
                      'details_status':"TEXT NOT NULL DEFAULT 'pending'", 'details_error':'TEXT',
-                     'details_attempt':'TEXT', 'details_updated':'TEXT'}
+                     'details_attempt':'TEXT', 'details_updated':'TEXT',
+                     'source':"TEXT NOT NULL DEFAULT 'linkedin'",'source_job_id':'TEXT',
+                     'is_active':'INTEGER NOT NULL DEFAULT 1','canonical_url':'TEXT'}
         }
         for table, columns in additions.items():
             existing = {r['name'] for r in con.execute(f'PRAGMA table_info({table})')}
@@ -80,6 +82,8 @@ def init():
           blocked_session REAL, reason TEXT, retry_after REAL NOT NULL DEFAULT 0);
         INSERT OR IGNORE INTO network_state(id) VALUES (1);
         ''')
+    from source_store import init_sources
+    init_sources()
 
 
 def save_jobs(search_id, jobs):

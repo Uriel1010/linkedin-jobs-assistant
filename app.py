@@ -4,6 +4,7 @@ import hmac
 import json
 import secrets
 import time
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -19,6 +20,12 @@ from maintenance import backup_database
 
 lock = asyncio.Lock()
 last_network_attempt = 0.0
+LINKEDIN_ENABLED = os.environ.get('LINKEDIN_COLLECTION_ENABLED') == '1'
+
+
+def require_linkedin():
+    if not LINKEDIN_ENABLED:
+        raise HTTPException(423, 'LinkedIn automation is disabled. Use public employer sources; stored jobs remain available.')
 
 
 def later(minutes):
@@ -30,6 +37,7 @@ def retry_delay(search):
 
 
 def network_guard():
+    require_linkedin()
     session = storage.DATA / 'session.json'
     if not session.exists():
         raise HTTPException(409, 'Connect LinkedIn first')
@@ -198,6 +206,17 @@ async def worker():
             storage.alert('worker', 'Background collection encountered an internal error; check service health')
 
 
+async def maintenance_worker():
+    """Database maintenance only. No collection or network requests."""
+    while True:
+        app.state.worker_last_tick = time.time()
+        try:
+            await asyncio.to_thread(backup_database,storage.DATA/'jobs.sqlite3',storage.DATA/'backups','jobs')
+        except Exception:
+            storage.alert('backup','Database backup failed; check server disk space and permissions')
+        await asyncio.sleep(300)
+
+
 @asynccontextmanager
 async def lifespan(app):
     storage.init()
@@ -210,7 +229,7 @@ async def lifespan(app):
         path.write_text(secrets.token_urlsafe(32))
     path.chmod(0o600)
     app.state.api_key = path.read_text().strip()
-    task = asyncio.create_task(worker())
+    task = asyncio.create_task(maintenance_worker())
     app.state.worker = task
     app.state.worker_last_tick = time.time()
     yield
@@ -270,7 +289,8 @@ def status():
         pending = con.execute("SELECT count(*) FROM jobs WHERE details_status IN ('pending','running')").fetchone()[0]
         failed = con.execute("SELECT count(*) FROM jobs WHERE details_status='error'").fetchone()[0]
         state = dict(con.execute('SELECT * FROM network_state WHERE id=1').fetchone())
-    return {'session_saved': (storage.DATA / 'session.json').exists(),
+    return {'linkedin_enabled':LINKEDIN_ENABLED, 'collection_mode':'public_employer_feeds',
+            'session_saved': (storage.DATA / 'session.json').exists(),
             'session_note': 'A saved session is not proof of an active LinkedIn login; see search status after polling.',
             'enabled_searches': count, 'collection_running': lock.locked(),
             'connecting': (storage.DATA / 'connecting.lock').exists(),
@@ -280,6 +300,7 @@ def status():
 
 @app.post('/searches', dependencies=protected, status_code=201)
 def create_search(search: Search):
+    require_linkedin()
     with storage.db() as con:
         con.execute('BEGIN IMMEDIATE')
         if con.execute('SELECT count(*) FROM searches').fetchone()[0] >= 20:
@@ -292,6 +313,7 @@ def create_search(search: Search):
 
 @app.post('/searches/bulk', dependencies=protected)
 def create_search_batch(batch: SearchBatch):
+    require_linkedin()
     def identity(keywords,location,remote):
         return (' '.join(keywords.split()).casefold(),' '.join(location.split()).casefold(),bool(remote))
     with storage.db() as con:
@@ -322,11 +344,13 @@ def create_search_batch(batch: SearchBatch):
 @app.get('/searches', dependencies=protected)
 def list_searches():
     with storage.db() as con:
-        return [dict(r) for r in con.execute('SELECT * FROM searches ORDER BY id')]
+        return [{**dict(r),'automation_disabled':not LINKEDIN_ENABLED} for r in con.execute("SELECT * FROM searches WHERE kind='linkedin' ORDER BY id")]
 
 
 @app.patch('/searches/{search_id}', dependencies=protected)
 async def update_search(search_id: int, update: SearchUpdate):
+    if update.enabled:
+        require_linkedin()
     previous=get_search(search_id)
     fields = update.model_dump(exclude_unset=True)
     if not fields or any(v is None for v in fields.values()):
@@ -372,7 +396,7 @@ async def poll_search(search_id: int):
 @app.get('/jobs', dependencies=protected)
 def jobs(after_id: int = Query(0, ge=0), search_id: int | None = None,
          limit: int = Query(100, ge=1, le=500)):
-    sql = '''SELECT e.id AS event_id,e.search_id,e.first_seen AS matched_at,j.*
+    sql = '''SELECT e.id AS event_id,e.search_id,e.first_seen AS matched_at,e.baseline,j.*
              FROM events e JOIN jobs j ON e.job_id=j.id WHERE e.id>?'''
     args = [after_id]
     if search_id is not None:
@@ -412,7 +436,8 @@ def job_detail(job_id: str):
 
 @app.post('/jobs/{job_id}/refresh', dependencies=protected)
 async def refresh_detail(job_id: str):
-    get_job(job_id)
+    if get_job(job_id).get('source','linkedin') != 'linkedin':
+        raise HTTPException(409,'Descriptions update with the employer feed. Refresh that source instead.')
     result = await enrich([job_id])
     if result['errors']:
         raise HTTPException(502, result['errors'])
@@ -556,3 +581,7 @@ def overview():
         total = con.execute('SELECT count(*) FROM jobs').fetchone()[0]
         due_count = con.execute("SELECT count(*) FROM applications WHERE follow_up_at<=? AND status NOT IN ('rejected','withdrawn','archived')", (storage.now(),)).fetchone()[0]
     return {'jobs':total, 'applications_by_status':counts, 'follow_ups_due':due_count, 'collector':status()}
+
+
+from source_api import router as source_router
+app.include_router(source_router, dependencies=protected)

@@ -134,6 +134,9 @@ def match_job(job, preferences, now=None):
 
 
 def freshness_label(job,language='en'):
+    if job.get('source','linkedin') != 'linkedin':
+        return (('תאריך פרסום: ' if language=='he' else 'Source posting date: ')+local_time(job['posted_at'],language=language)
+                if job.get('posted_at') else ('תאריך הפרסום לא סופק' if language=='he' else 'Posting date not provided by source'))
     posted=job.get('posted_at')
     raw=' '.join((job.get('posted_text') or '').split())
     if raw and ('reposted' in raw.casefold() or 'פורסם מחדש' in raw):

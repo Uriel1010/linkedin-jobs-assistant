@@ -1,0 +1,6 @@
+FROM python:3.12-slim
+WORKDIR /app
+COPY source_worker.py source_providers.py source_store.py storage.py maintenance.py ./
+ENV DATA_DIR=/app/data PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+USER 1000:1000
+CMD ["python","source_worker.py"]

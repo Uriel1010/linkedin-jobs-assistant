@@ -69,6 +69,9 @@ def card(job,index,prefs,language):
     url=job.get('url') or ''
     parsed=urlsplit(url)
     valid=parsed.scheme=='https' and parsed.netloc.lower() in ('linkedin.com','www.linkedin.com') and re.fullmatch(r'/jobs/view/\d+/?',parsed.path)
+    if job.get('source') in ('greenhouse','lever','lever_eu','ashby'):
+        from source_providers import canonical_url
+        valid=bool(canonical_url(url))
     heading=f'<a href="{html.escape(url,quote=True)}"><b>{esc(title)}</b></a>' if valid else f'<b>{esc(title)}</b>'
     company=(job.get('company') or tr('Company unknown',language))[:80]
     place=compact_location(job,prefs['region']=='israel',language)

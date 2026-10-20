@@ -12,3 +12,9 @@ The dashboard service binds only to server loopback (`127.0.0.1:8780`). Use an S
 The dashboard access key is generated separately in `dashboard-data/access-key`, with owner-only permissions. API credentials remain server-side. Browser sessions use random tokens stored as hashes, expire after seven days, and are revoked on sign-out. Mutations require a custom request header and a matching Origin when present. Login attempts are rate-limited.
 
 Keep the entire `dashboard-data/` directory and its backups private. It contains session state and personal job-triage choices. `DASHBOARD_DEMO=1` deliberately bypasses authentication and uses fictional fixtures; only enable it in an isolated, temporary loopback preview. Production Compose does not enable demo mode.
+
+## Public employer feeds
+
+The standard deployment disables LinkedIn collection and uses a browser-free API plus a separate public-feed worker. No source adapter loads LinkedIn cookies. Outbound feed requests use fixed provider hosts, validated board names, no redirects, finite timeouts, bounded responses, and durable budgets. The email preview parser performs no network requests and is not a mailbox connector.
+
+Keep old LinkedIn session files outside all mounted runtime directories. Runtime databases and credentials remain excluded from Git and Docker build contexts. Dashboard mutations retain session authentication and same-origin CSRF checks; upstream source endpoints require the API key.

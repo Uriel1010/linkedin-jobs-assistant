@@ -1,4 +1,5 @@
 @import url("/assets/base.css");
+.source-heading{display:flex;gap:8px;flex-wrap:wrap}.source-warning{padding:12px;border-radius:8px;background:#fff4df;color:#795820!important}.search-actions{flex-wrap:wrap}
 
 .settings-intro{display:flex;align-items:center;gap:18px;margin-bottom:24px;max-width:980px}.settings-intro p,.settings-card p{color:var(--muted);line-height:1.65;font-size:13px}.settings-intro .pill{white-space:nowrap}
 .settings-card{max-width:980px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:28px;margin-bottom:18px}

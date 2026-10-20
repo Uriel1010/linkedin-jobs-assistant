@@ -13,6 +13,8 @@ from collector import CollectionError, EXTRACT
 
 class ApiTests(unittest.TestCase):
     def setUp(self):
+        self.linkedin_patch=patch.object(service,'LINKEDIN_ENABLED',True)
+        self.linkedin_patch.start()
         self.temp = tempfile.TemporaryDirectory()
         self.original = storage.DATA
         storage.DATA = Path(self.temp.name)
@@ -22,6 +24,7 @@ class ApiTests(unittest.TestCase):
         service.last_network_attempt = 0
 
     def tearDown(self):
+        self.linkedin_patch.stop()
         self.client_context.__exit__(None, None, None)
         storage.DATA = self.original
         self.temp.cleanup()
