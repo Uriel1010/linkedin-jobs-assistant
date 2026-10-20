@@ -51,12 +51,25 @@ The screenshots are real captures of the included **demo mode**. All companies, 
 - Manage collection searches, pause/resume them, request a run, and review service notices.
 - Export the current filtered results as CSV. Spreadsheet formula prefixes are neutralized.
 
-Dashboard dismiss/read state is persistent in its own database. Dismissing a job hides it from the dashboard inbox; the source record stays in the API database. Telegram continues to use its own feed preferences and delivery ledger. Dashboard filters are independent of Telegram `/preferences`. Quiet hours remain managed through `/quiet`.
+Dashboard dismiss/read state is persistent in its own database. Dismissing a job hides it from the dashboard inbox; the source record stays in the API database. Telegram continues to use its own feed preferences and delivery ledger. Dashboard filters are independent of Telegram `/preferences`. Open **Settings** to edit the shared Telegram feed preferences and quiet hours, or continue using `/preferences` and `/quiet` in Telegram.
 
 <img src="docs/images/dashboard-mobile.png" width="320" alt="Mobile job inbox with bottom navigation, using fictional data">
 <img src="docs/images/dashboard-mobile-detail.png" width="320" alt="Mobile full-screen job details, using fictional data">
 
 ![Application board with stages, notes and follow-up dates; fictional data](docs/images/dashboard-applications.png)
+
+### Settings
+
+Open **Settings** in the sidebar or mobile navigation. Choose disciplines, experience levels, location scope, posting-age limit, and include/exclude keywords (English or Hebrew). Control notification delivery and configure quiet hours with a timezone. Click **Save changes** to apply them to the bot on its next check.
+
+Collection continues during quiet hours; the existing catch-up flow scans again and covers the quiet period. Dashboard inbox filters remain independent of Telegram feed filters. Previously filtered jobs are reconsidered; already-sent jobs are not replayed.
+
+Unsaved edits are marked. If Telegram or another tab changes settings while you edit, saving is blocked until you reload, avoiding accidental overwrites. The first notification setup still requires `/notify on` in Telegram to establish the historical baseline.
+
+The dashboard mounts `./bot-data/state` to share the bot's SQLite settings. It does not mount the bot token configuration. Keep both services on the same host; SQLite coordinates their writes. If settings are unavailable, check that the bot has initialized and the state volume is mounted.
+
+![Settings page with fictional demonstration preferences](docs/images/dashboard-settings.png)
+<img src="docs/images/dashboard-settings-mobile.png" width="320" alt="Mobile settings page with fictional demonstration preferences">
 
 ### Start the private dashboard
 

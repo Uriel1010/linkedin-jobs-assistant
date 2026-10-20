@@ -8,6 +8,7 @@
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/assets/style.css">
 <script defer src="/assets/app.js"></script>
+<script defer src="/assets/settings.js"></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to jobs</a>
@@ -35,7 +36,7 @@
       <button data-view="dismissed" class="nav"><span data-icon="archive"></span><span>Dismissed</span><b id="count-dismissed">—</b></button>
     </nav>
     <span class="eyebrow nav-label">BEHIND THE SCENES</span>
-    <nav aria-label="Collection settings"><button data-view="searches" class="nav"><span data-icon="radar"></span><span>Searches & health</span></button></nav>
+    <nav aria-label="Collection settings"><button data-view="searches" class="nav"><span data-icon="radar"></span><span>Searches & health</span></button><button data-view="settings" class="nav"><span data-icon="filter"></span><span>Settings</span></button></nav>
     <div class="sidebar-bottom"><div class="connection"><i></i><span>Private server workspace</span></div><p>One place for your next move.</p><button id="logout" class="text-button"><span data-icon="logout"></span> Sign out</button></div>
   </aside>
   <div class="workspace">
@@ -53,7 +54,15 @@
         <div class="inbox-layout"><div class="job-column"><div id="job-list" aria-live="polite" aria-busy="true"></div><div id="pagination" class="pagination"></div></div><aside id="detail-panel" class="detail-panel" aria-label="Job details"><div class="detail-placeholder"><span class="large-symbol">↗</span><h2>Good things ahead.</h2><p>Select an opportunity to read the details, take a note, or make your next move.</p><span class="pill">Your search, at your pace.</span></div></aside></div>
       </section>
       <section id="applications-view" hidden><div class="board-toolbar"><p>Keep the next step in sight. Open a card to update its stage or notes.</p><label>Show<select id="board-filter"><option value="active">Active applications</option><option value="all">All stages</option></select></label></div><div id="board" class="board"></div></section>
-      <section id="searches-view" hidden><div class="section-heading"><div><h2>Your collection schedule</h2><p>Searches run on your server. Telegram quiet hours are managed with /quiet.</p></div><button id="add-search" class="primary">+ Add search</button></div><div id="health-summary" class="health-summary"></div><div id="search-list" class="search-grid"></div><div class="section-heading"><div><h2>Service notices</h2><p>Collection issues and description availability, without interrupting your inbox.</p></div></div><div id="alert-list"></div></section>
+      <section id="searches-view" hidden><div class="section-heading"><div><h2>Your collection schedule</h2><p>Searches run on your server. Manage Telegram preferences and quiet hours in Settings.</p></div><button id="add-search" class="primary">+ Add search</button></div><div id="health-summary" class="health-summary"></div><div id="search-list" class="search-grid"></div><div class="section-heading"><div><h2>Service notices</h2><p>Collection issues and description availability, without interrupting your inbox.</p></div></div><div id="alert-list"></div></section>
+      <section id="settings-view" hidden>
+        <form id="settings-form">
+          <div class="settings-intro"><span class="pill stage">SHARED WITH TELEGRAM</span><p>Make the feed yours. These preferences control Telegram notifications; your dashboard inbox keeps the full catalog and its own filters.</p></div>
+          <div id="settings-content" aria-busy="true"></div>
+          <div class="settings-actions"><span id="settings-status" role="status">Loading settings…</span><button id="settings-reload" type="button" class="secondary">Reload settings</button><button id="settings-save" class="primary" type="submit" disabled>Save changes</button></div>
+          <p id="settings-error" class="error" role="alert"></p>
+        </form>
+      </section>
       <footer class="footnote">Discovered dates show when this workspace found a job. Source posting dates may be unavailable.</footer>
     </main>
   </div>

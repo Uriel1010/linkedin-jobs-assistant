@@ -4,7 +4,7 @@ const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;
 const paths={inbox:'M3 4h18v16H3z M3 13h5l2 3h4l2-3h5',bookmark:'M6 3h12v18l-6-4-6 4z',columns:'M3 4h18v16H3z M9 4v16 M15 4v16',archive:'M3 3h18v5H3z M5 8v13h14V8 M9 12h6',radar:'M12 12l8-8 M12 3a9 9 0 1 0 9 9 M12 7a5 5 0 1 0 5 5',logout:'M9 4H4v16h5 M10 12h11 M17 8l4 4-4 4',lock:'M6 10h12v11H6z M8 10V6a4 4 0 0 1 8 0v4',refresh:'M20 7a9 9 0 1 0 1 9 M20 2v6h-6',search:'M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14 M15 15l6 6',filter:'M3 5h18 M6 12h12 M9 19h6 M8 2v6 M16 9v6 M11 16v6',download:'M12 3v12 M7 10l5 5 5-5 M4 16v5h16v-5',pin:'M12 21s7-7 7-12a7 7 0 0 0-14 0c0 5 7 12 7 12z M12 6a3 3 0 1 0 0 6 3 3 0 0 0 0-6',close:'M6 6l12 12 M18 6 6 18',restore:'M4 4v6h6 M4 10a8 8 0 1 1 1 8',arrow:'M5 19 19 5 M6 5h13v13',check:'M4 12l5 5L20 6'};
 const icon=name=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name]||paths.inbox}"/></svg>`;
 document.querySelectorAll('[data-icon]').forEach(el=>el.innerHTML=icon(el.dataset.icon));
-const labels={inbox:'Job inbox',saved:'Shortlist',dismissed:'Dismissed',applications:'Applications',searches:'Searches & health'};
+const labels={inbox:'Job inbox',saved:'Shortlist',dismissed:'Dismissed',applications:'Applications',searches:'Searches & health',settings:'Settings'};
 const stages={saved:'Saved',reviewing:'Reviewing',applied:'Applied',interviewing:'Interviewing',offer:'Offer',rejected:'Rejected',withdrawn:'Withdrawn',archived:'Archived'};
 const roles={embedded:'Embedded',software:'Software',backend:'Backend',frontend:'Frontend',fullstack:'Full stack',qa:'QA & testing',other:'Other',devops:'DevOps',data:'Data',ml:'AI / ML',research:'Research',security:'Security',support:'Support',management:'Management'};
 const state={view:'inbox',offset:0,items:[],selected:null,checked:new Set(),apps:[],demo:false,listSeq:0,detailSeq:0};
@@ -109,14 +109,16 @@ async function loadSearches(){
   $('alert-list').innerHTML=alerts.length?alerts.map(a=>`<article class="notice"><p>${esc(a.message)}<small>${esc(clock(a.created_at))}${a.acknowledged_at?' · Acknowledged':''}</small></p>${a.acknowledged_at?'':`<button class="secondary" data-ack="${a.id}">Acknowledge</button>`}</article>`).join(''):'<div class="notice"><span class="pill stage">All clear</span><p>No open service notices.</p></div>';
 }
 async function changeView(view){
+  if(state.view==='settings' && settingsDirty && !confirm('Leave without saving your settings?'))return;
+  settingsDirty=false;
   state.view=view;state.offset=0;state.checked.clear();state.listSeq++;closeDetail();$('global-error').hidden=true;
   document.querySelectorAll('[data-view]').forEach(el=>el.classList.toggle('active',el.dataset.view===view));
   $('breadcrumb').textContent=labels[view];
-  $('page-title').textContent={inbox:'Your next chapter.',saved:'The ones worth a closer look.',dismissed:'A little less noise.',applications:'Keep your next move moving.',searches:'Your search, on autopilot.'}[view];
-  $('page-subtitle').textContent={inbox:'A focused place to find, consider, and make your next move.',saved:'Your considered shortlist. Give each possibility a little space.',dismissed:'Set aside for now. Every opportunity can be restored.',applications:'From first interest to the next conversation. One step at a time.',searches:'Set the direction. Your server keeps an eye on new opportunities.'}[view];
+  $('page-title').textContent={inbox:'Your next chapter.',saved:'The ones worth a closer look.',dismissed:'A little less noise.',applications:'Keep your next move moving.',settings:'A search that fits your life.',searches:'Your search, on autopilot.'}[view];
+  $('page-subtitle').textContent={inbox:'A focused place to find, consider, and make your next move.',saved:'Your considered shortlist. Give each possibility a little space.',dismissed:'Set aside for now. Every opportunity can be restored.',applications:'From first interest to the next conversation. One step at a time.',settings:'Choose what reaches you, and when. You’re in control.',searches:'Set the direction. Your server keeps an eye on new opportunities.'}[view];
   const list=['inbox','saved','dismissed'].includes(view);
-  $('jobs-view').hidden=!list;$('applications-view').hidden=view!=='applications';$('searches-view').hidden=view!=='searches';$('export').hidden=!list;
-  if(list){state.items=[];await loadJobs();await loadOverview()}else if(view==='applications')await loadBoard();else await loadSearches();
+  $('settings-view').hidden=view!=='settings';$('jobs-view').hidden=!list;$('applications-view').hidden=view!=='applications';$('searches-view').hidden=view!=='searches';$('export').hidden=!list;
+  if(list){state.items=[];await loadJobs();await loadOverview()}else if(view==='applications')await loadBoard();else if(view==='settings')await loadSettings();else await loadSearches();
 }
 async function run(action,button){if(button)button.disabled=true;try{await action()}catch(err){error(err);toast(err.message)}finally{if(button)button.disabled=false}}
 document.addEventListener('click',event=>{

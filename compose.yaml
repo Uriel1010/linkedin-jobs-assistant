@@ -83,6 +83,7 @@ services:
     volumes:
       - ./data/api-key:/run/jobs-api-key:ro
       - ./dashboard-data:/app/state
+      - ./bot-data/state:/app/bot-state
     read_only: true
     tmpfs:
       - /tmp:size=32m,mode=1777

@@ -54,6 +54,35 @@ class DashboardBrowserTests(unittest.TestCase):
             path=Path(folder);path.mkdir(parents=True,exist_ok=True)
             self.page.screenshot(path=str(path/name),full_page=False)
 
+    def test_settings_mobile_save_reload_and_validation(self):
+        p=self.page
+        p.set_viewport_size({'width':390,'height':844})
+        p.locator('[data-view="settings"]').click()
+        p.locator('#pref-age').wait_for()
+        p.locator('[name="pref-levels"][value="senior"]').check()
+        expect(p.locator('[name="pref-levels"][value="all"]')).not_to_be_checked()
+        p.locator('#pref-age').fill('72')
+        p.locator('#quiet-enabled').check()
+        p.locator('#quiet-start').fill('23:00')
+        p.locator('#quiet-end').fill('23:00')
+        p.locator('#settings-save').click()
+        expect(p.locator('#settings-error')).to_contain_text('different start')
+        p.locator('#quiet-end').fill('08:00')
+        p.locator('#settings-save').click()
+        expect(p.locator('#settings-status')).to_have_text('Saved · shared with Telegram')
+        p.locator('#settings-reload').click()
+        expect(p.locator('#settings-status')).to_contain_text('Up to date')
+        expect(p.locator('#pref-age')).to_have_value('72')
+        expect(p.locator('#quiet-enabled')).to_be_checked()
+        self.assertTrue(p.evaluate('document.documentElement.scrollWidth <= innerWidth'))
+        nav=p.locator('[data-view="settings"]').bounding_box()
+        self.assertLessEqual(nav['y']+nav['height'],844)
+        p.locator('#toast').wait_for(state='hidden')
+        p.locator('#page-title').scroll_into_view_if_needed()
+        self.screenshot('dashboard-settings-mobile.png')
+        p.set_viewport_size({'width':1440,'height':1050})
+        self.screenshot('dashboard-settings.png')
+
     def test_desktop_details_dismiss_undo_and_filter(self):
         p=self.page
         p.locator('.card-open').first.click()

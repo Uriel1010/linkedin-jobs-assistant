@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from feed_rules import role_of, level_of, parse_time
 from maintenance import backup_database
+from dashboard_settings import router as settings_router
 
 ROOT = Path(__file__).parent
 STATE = Path(os.environ.get('DASHBOARD_STATE_DIR', '/app/state'))
@@ -29,6 +30,7 @@ DEMO = os.environ.get('DASHBOARD_DEMO') == '1'
 SECURE = os.environ.get('DASHBOARD_SECURE_COOKIE') == '1'
 UPSTREAM = os.environ.get('JOBS_API_URL', 'http://api:8765')
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+app.include_router(settings_router)
 cache = {}
 lock = threading.Lock()
 attempts = {}
